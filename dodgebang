@@ -1,0 +1,685 @@
+-- ==================================================================
+-- UNICORN'S STUDIO: EVADE FACEBANG & VOID REPLICATION ENGINE
+-- Standalone Anti-Bang & Physics Root Evasion Mechanism
+-- ==================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+
+local LocalPlayer = Players.LocalPlayer
+while not LocalPlayer do
+    task.wait()
+    LocalPlayer = Players.LocalPlayer
+end
+
+-- ------------------------------------------------------------------
+-- 1. CONFIGURATION & STATE
+-- ------------------------------------------------------------------
+local State = {
+    enabled = false,
+    minimized = false,
+    visualMirror = true,          -- Keep head visible on fake character so you look completely normal
+    mode = "SafeVoid",           -- "SafeVoid", "SkyTrap", "Underground"
+    customVoidY = nil,
+    attackersTrapped = {},
+    connections = {}
+}
+
+-- Modern Reanim Palette (Strict Reanim 1.8 Aesthetic, No Emojis)
+local C = {
+    bg = Color3.fromRGB(12, 14, 18),
+    bgHeader = Color3.fromRGB(16, 18, 24),
+    bgCard = Color3.fromRGB(18, 20, 28),
+    bgCardActive = Color3.fromRGB(18, 32, 24),
+    border = Color3.fromRGB(38, 44, 58),
+    borderActive = Color3.fromRGB(48, 160, 96),
+    borderInactive = Color3.fromRGB(160, 50, 60),
+    accent = Color3.fromRGB(120, 100, 230),
+    accentSoft = Color3.fromRGB(160, 140, 255),
+    green = Color3.fromRGB(60, 200, 120),
+    greenDim = Color3.fromRGB(24, 70, 42),
+    red = Color3.fromRGB(235, 75, 75),
+    redDim = Color3.fromRGB(70, 24, 24),
+    textPrimary = Color3.fromRGB(235, 240, 250),
+    textSecondary = Color3.fromRGB(140, 150, 175),
+    textMuted = Color3.fromRGB(90, 100, 125)
+}
+
+-- Calculate optimal void height based on game environment
+local function calculateSafeVoidY()
+    local fallenHeight = Workspace.FallenPartsDestroyHeight
+    if fallenHeight and fallenHeight > -50000 and fallenHeight < 0 then
+        -- Keep parts 40 studs safely above Roblox's physics destroy limit
+        return fallenHeight + 40
+    end
+    return -460
+end
+
+local function getTargetVoidCFrame()
+    if State.mode == "SkyTrap" then
+        return CFrame.new(0, 10000, 0)
+    elseif State.mode == "Underground" then
+        local baseCF = CFrame.new(0, 0, 0)
+        local char = LocalPlayer.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                baseCF = hrp.CFrame
+            end
+        end
+        return CFrame.new(baseCF.Position.X, baseCF.Position.Y - 120, baseCF.Position.Z)
+    else
+        -- Safe Void (Default)
+        local voidY = State.customVoidY or calculateSafeVoidY()
+        return CFrame.new(0, voidY, 0)
+    end
+end
+
+-- ------------------------------------------------------------------
+-- 2. REANIMATION BRIDGE & RESOLUTION
+-- ------------------------------------------------------------------
+local function getActiveCharacters()
+    local realChar = nil
+    local fakeChar = nil
+
+    -- 1. Check Zen / Unicorn Reanimation globals
+    if _G.ZenAPI and type(_G.ZenAPI.get_real_character) == "function" then
+        realChar = _G.ZenAPI.get_real_character(LocalPlayer)
+        fakeChar = _G.ZenAPI.get_clone and _G.ZenAPI.get_clone(LocalPlayer)
+    elseif _G.ReanimateAPI and type(_G.ReanimateAPI.get_real_character) == "function" then
+        realChar = _G.ReanimateAPI.get_real_character(LocalPlayer)
+        fakeChar = _G.ReanimateAPI.get_clone and _G.ReanimateAPI.get_clone(LocalPlayer)
+    end
+
+    -- 2. Check internal Zen reanim tables if exposed
+    if not realChar and _G.zen and _G.zen.real_chars then
+        realChar = _G.zen.real_chars[LocalPlayer]
+        fakeChar = _G.zen.clones and _G.zen.clones[LocalPlayer]
+    end
+
+    -- 3. Fallback to active Character
+    if not realChar then
+        realChar = LocalPlayer.Character
+    end
+    if not fakeChar then
+        fakeChar = LocalPlayer.Character
+    end
+
+    return realChar, fakeChar
+end
+
+-- ------------------------------------------------------------------
+-- 3. GUI CONSTRUCTION (ULTRA-SLEEK FLOATING CARD)
+-- ------------------------------------------------------------------
+local parentGui = nil
+pcall(function()
+    if gethui then
+        parentGui = gethui()
+    elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then
+        parentGui = game:GetService("CoreGui")
+    end
+end)
+if not parentGui then
+    parentGui = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Clean up any prior instance
+local priorGui = parentGui:FindFirstChild("UnicornDodgeBangGui")
+if priorGui then
+    priorGui:Destroy()
+end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "UnicornDodgeBangGui"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = parentGui
+
+local function applyCorner(inst, r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r or 8)
+    c.Parent = inst
+    return c
+end
+
+local function applyStroke(inst, col, thickness, trans)
+    local s = Instance.new("UIStroke")
+    s.Color = col or C.border
+    s.Thickness = thickness or 1
+    s.Transparency = trans or 0
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = inst
+    return s
+end
+
+-- Main Draggable Container
+local mainCard = Instance.new("Frame")
+mainCard.Name = "DodgeBangCard"
+mainCard.Size = UDim2.new(0, 320, 0, 290)
+mainCard.Position = UDim2.new(1, -340, 0, 80)
+mainCard.BackgroundColor3 = C.bg
+mainCard.BorderSizePixel = 0
+mainCard.Active = true
+mainCard.ClipsDescendants = true
+mainCard.Parent = screenGui
+applyCorner(mainCard, 10)
+local mainCardStroke = applyStroke(mainCard, C.border, 1.2, 0)
+
+-- Header / Drag Handle
+local header = Instance.new("Frame")
+header.Name = "Header"
+header.Size = UDim2.new(1, 0, 0, 36)
+header.BackgroundColor3 = C.bgHeader
+header.BorderSizePixel = 0
+header.Parent = mainCard
+applyStroke(header, C.border, 1, 0)
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -90, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "EVADE FACEBANG // VOID TRAP"
+titleLabel.TextColor3 = C.accentSoft
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 11
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = header
+
+local btnMin = Instance.new("TextButton")
+btnMin.Size = UDim2.new(0, 24, 0, 22)
+btnMin.Position = UDim2.new(1, -56, 0.5, -11)
+btnMin.BackgroundColor3 = C.bgCard
+btnMin.Text = "-"
+btnMin.TextColor3 = C.textSecondary
+btnMin.Font = Enum.Font.GothamBold
+btnMin.TextSize = 13
+btnMin.Parent = header
+applyCorner(btnMin, 4)
+applyStroke(btnMin, C.border, 1, 0)
+
+local btnClose = Instance.new("TextButton")
+btnClose.Size = UDim2.new(0, 24, 0, 22)
+btnClose.Position = UDim2.new(1, -28, 0.5, -11)
+btnClose.BackgroundColor3 = C.bgCard
+btnClose.Text = "X"
+btnClose.TextColor3 = C.textSecondary
+btnClose.Font = Enum.Font.GothamBold
+btnClose.TextSize = 10
+btnClose.Parent = header
+applyCorner(btnClose, 4)
+applyStroke(btnClose, C.border, 1, 0)
+
+-- Dragging Implementation
+local isDragging = false
+local dragStart = nil
+local startPos = nil
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDragging = true
+        dragStart = input.Position
+        startPos = mainCard.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                isDragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        mainCard.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- Body Container
+local bodyFrame = Instance.new("Frame")
+bodyFrame.Name = "Body"
+bodyFrame.Size = UDim2.new(1, -20, 1, -48)
+bodyFrame.Position = UDim2.new(0, 10, 0, 42)
+bodyFrame.BackgroundTransparency = 1
+bodyFrame.Parent = mainCard
+
+-- Main Action Toggle Button
+local btnToggle = Instance.new("TextButton")
+btnToggle.Name = "BtnToggleEvade"
+btnToggle.Size = UDim2.new(1, 0, 0, 42)
+btnToggle.Position = UDim2.new(0, 0, 0, 0)
+btnToggle.BackgroundColor3 = C.bgCard
+btnToggle.Text = "EVADE FACEBANG : INACTIVE"
+btnToggle.TextColor3 = C.red
+btnToggle.Font = Enum.Font.GothamBold
+btnToggle.TextSize = 12
+btnToggle.AutoButtonColor = false
+btnToggle.Parent = bodyFrame
+applyCorner(btnToggle, 6)
+local btnToggleStroke = applyStroke(btnToggle, C.borderInactive, 1.5, 0)
+
+-- Status Info Deck
+local infoCard = Instance.new("Frame")
+infoCard.Size = UDim2.new(1, 0, 0, 108)
+infoCard.Position = UDim2.new(0, 0, 0, 48)
+infoCard.BackgroundColor3 = Color3.fromRGB(15, 17, 23)
+infoCard.BorderSizePixel = 0
+infoCard.Parent = bodyFrame
+applyCorner(infoCard, 6)
+applyStroke(infoCard, C.border, 1, 0.4)
+
+local function createInfoRow(yOffset, labelTitle, initialVal)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, -16, 0, 20)
+    row.Position = UDim2.new(0, 8, 0, yOffset)
+    row.BackgroundTransparency = 1
+    row.Parent = infoCard
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0, 120, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = labelTitle
+    lbl.TextColor3 = C.textSecondary
+    lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 10
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
+
+    local val = Instance.new("TextLabel")
+    val.Size = UDim2.new(1, -120, 1, 0)
+    val.Position = UDim2.new(0, 120, 0, 0)
+    val.BackgroundTransparency = 1
+    val.Text = initialVal
+    val.TextColor3 = C.textPrimary
+    val.Font = Enum.Font.Code
+    val.TextSize = 10
+    val.TextXAlignment = Enum.TextXAlignment.Right
+    val.Parent = row
+
+    return val
+end
+
+local valState = createInfoRow(6, "STATUS", "IDLE (STANDBY)")
+local valDepth = createInfoRow(28, "VOID TARGET", tostring(calculateSafeVoidY()) .. " Y (SAFE)")
+local valParts = createInfoRow(50, "PROTECTED NODES", "Head + PhysicsRoot")
+local valTrapped = createInfoRow(72, "ATTACKERS TRAPPED", "0 (NONE)")
+valTrapped.TextColor3 = C.green
+
+-- Preset Mode Buttons Row
+local modeRow = Instance.new("Frame")
+modeRow.Size = UDim2.new(1, 0, 0, 26)
+modeRow.Position = UDim2.new(0, 0, 0, 162)
+modeRow.BackgroundTransparency = 1
+modeRow.Parent = bodyFrame
+
+local modeLayout = Instance.new("UIListLayout")
+modeLayout.FillDirection = Enum.FillDirection.Horizontal
+modeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+modeLayout.Padding = UDim.new(0, 6)
+modeLayout.Parent = modeRow
+
+local function createModeBtn(text, modeKey)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 94, 1, 0)
+    btn.BackgroundColor3 = C.bgCard
+    btn.Text = text
+    btn.TextColor3 = (State.mode == modeKey) and C.accentSoft or C.textSecondary
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 9
+    btn.Parent = modeRow
+    applyCorner(btn, 4)
+    local s = applyStroke(btn, (State.mode == modeKey) and C.accent or C.border, 1, 0)
+    
+    btn.MouseButton1Click:Connect(function()
+        State.mode = modeKey
+        for _, child in ipairs(modeRow:GetChildren()) do
+            if child:IsA("TextButton") then
+                child.TextColor3 = C.textSecondary
+                local st = child:FindFirstChildOfClass("UIStroke")
+                if st then st.Color = C.border end
+            end
+        end
+        btn.TextColor3 = C.accentSoft
+        s.Color = C.accent
+
+        local cf = getTargetVoidCFrame()
+        valDepth.Text = string.format("%.0f Y (%s)", cf.Position.Y, modeKey:upper())
+    end)
+
+    return btn
+end
+
+createModeBtn("SAFE VOID", "SafeVoid")
+createModeBtn("SKY (+10K)", "SkyTrap")
+createModeBtn("UNDERGROUND", "Underground")
+
+-- Bottom Secondary Options
+local bottomRow = Instance.new("Frame")
+bottomRow.Size = UDim2.new(1, 0, 0, 26)
+bottomRow.Position = UDim2.new(0, 0, 0, 194)
+bottomRow.BackgroundTransparency = 1
+bottomRow.Parent = bodyFrame
+
+local btnMirror = Instance.new("TextButton")
+btnMirror.Size = UDim2.new(1, 0, 1, 0)
+btnMirror.BackgroundColor3 = C.bgCard
+btnMirror.Text = "PRESERVE AVATAR HEAD ON MAP : ON"
+btnMirror.TextColor3 = C.green
+btnMirror.Font = Enum.Font.GothamMedium
+btnMirror.TextSize = 9.5
+btnMirror.Parent = bottomRow
+applyCorner(btnMirror, 4)
+local mirrorStroke = applyStroke(btnMirror, C.border, 1, 0)
+
+btnMirror.MouseButton1Click:Connect(function()
+    State.visualMirror = not State.visualMirror
+    if State.visualMirror then
+        btnMirror.Text = "PRESERVE AVATAR HEAD ON MAP : ON"
+        btnMirror.TextColor3 = C.green
+    else
+        btnMirror.Text = "PRESERVE AVATAR HEAD ON MAP : OFF"
+        btnMirror.TextColor3 = C.textMuted
+    end
+end)
+
+-- Keybind Notice
+local keyNotice = Instance.new("TextLabel")
+keyNotice.Size = UDim2.new(1, 0, 0, 14)
+keyNotice.Position = UDim2.new(0, 0, 0, 224)
+keyNotice.BackgroundTransparency = 1
+keyNotice.Text = "[KEYBIND: PRESS B TO TOGGLE EVASION]"
+keyNotice.TextColor3 = C.textMuted
+keyNotice.Font = Enum.Font.Code
+keyNotice.TextSize = 8.5
+keyNotice.Parent = bodyFrame
+
+-- Minimize Toggle
+btnMin.MouseButton1Click:Connect(function()
+    State.minimized = not State.minimized
+    if State.minimized then
+        TweenService:Create(mainCard, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 320, 0, 36)
+        }):Play()
+        btnMin.Text = "+"
+        bodyFrame.Visible = false
+    else
+        bodyFrame.Visible = true
+        TweenService:Create(mainCard, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 320, 0, 290)
+        }):Play()
+        btnMin.Text = "-"
+    end
+end)
+
+btnClose.MouseButton1Click:Connect(function()
+    screenGui.Enabled = false
+end)
+
+-- ------------------------------------------------------------------
+-- 4. CORE EVASION & VOID REPLICATION MECHANISM
+-- ------------------------------------------------------------------
+local function updateUIState()
+    if State.enabled then
+        btnToggle.Text = "EVADE FACEBANG : ACTIVE"
+        btnToggle.TextColor3 = C.green
+        btnToggle.BackgroundColor3 = C.bgCardActive
+        btnToggleStroke.Color = C.borderActive
+        mainCardStroke.Color = C.borderActive
+
+        valState.Text = "ACTIVE (HEAD + ROOT IN VOID)"
+        valState.TextColor3 = C.green
+
+        local cf = getTargetVoidCFrame()
+        valDepth.Text = string.format("%.0f Y (%s)", cf.Position.Y, State.mode:upper())
+    else
+        btnToggle.Text = "EVADE FACEBANG : INACTIVE"
+        btnToggle.TextColor3 = C.red
+        btnToggle.BackgroundColor3 = C.bgCard
+        btnToggleStroke.Color = C.borderInactive
+        mainCardStroke.Color = C.border
+
+        valState.Text = "IDLE (STANDBY)"
+        valState.TextColor3 = C.textSecondary
+        valTrapped.Text = "0 (NONE)"
+        valTrapped.TextColor3 = C.green
+    end
+end
+
+local function cleanConnections()
+    for _, conn in pairs(State.connections) do
+        if conn and typeof(conn) == "RBXScriptConnection" then
+            pcall(function() conn:Disconnect() end)
+        end
+    end
+    table.clear(State.connections)
+end
+
+local function restoreNormalState()
+    cleanConnections()
+
+    -- Remove global override flags
+    if _G.hiddenBodyParts then
+        _G.hiddenBodyParts["Head"] = nil
+        _G.hiddenBodyParts["HumanoidRootPart"] = nil
+    end
+    if _G.hiddenBodyPartPositions then
+        _G.hiddenBodyPartPositions["Head"] = nil
+        _G.hiddenBodyPartPositions["HumanoidRootPart"] = nil
+    end
+    _G.hiddenBodyPartVoidY = nil
+
+    -- Restore clone and real character head visibility
+    local realChar, fakeChar = getActiveCharacters()
+    if fakeChar and fakeChar.Parent then
+        local fHead = fakeChar:FindFirstChild("Head")
+        if fHead and fHead:IsA("BasePart") then
+            fHead.Transparency = 0
+            fHead.LocalTransparencyModifier = 0
+            for _, d in ipairs(fHead:GetChildren()) do
+                if d:IsA("Decal") then d.Transparency = 0 end
+            end
+        end
+        for _, acc in ipairs(fakeChar:GetChildren()) do
+            if acc:IsA("Accessory") then
+                local h = acc:FindFirstChild("Handle")
+                if h and h:IsA("BasePart") then
+                    h.Transparency = 0
+                    h.LocalTransparencyModifier = 0
+                end
+            end
+        end
+    end
+
+    if realChar and realChar.Parent then
+        local rHead = realChar:FindFirstChild("Head")
+        if rHead and rHead:IsA("BasePart") then
+            rHead.CanCollide = false
+        end
+    end
+end
+
+local function startEvadeMechanism()
+    cleanConnections()
+
+    local targetCF = getTargetVoidCFrame()
+    local voidY = targetCF.Position.Y
+
+    -- 1. Notify Zen/Unicorn Reanim synchronization
+    _G.hiddenBodyParts = _G.hiddenBodyParts or {}
+    _G.hiddenBodyParts["Head"] = true
+    _G.hiddenBodyParts["HumanoidRootPart"] = true
+    _G.hiddenBodyPartVoidY = voidY
+    _G.hiddenBodyPartPositions = _G.hiddenBodyPartPositions or {}
+    _G.hiddenBodyPartPositions["Head"] = targetCF
+    _G.hiddenBodyPartPositions["HumanoidRootPart"] = targetCF
+
+    -- 2. Stepped (PreSimulation): Strip collision and enforce neutral physics state
+    State.connections.stepped = RunService.Stepped:Connect(function()
+        if not State.enabled then return end
+        local realChar, fakeChar = getActiveCharacters()
+        if not (realChar and realChar.Parent) then return end
+
+        local realHum = realChar:FindFirstChildOfClass("Humanoid")
+        if realHum then
+            pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end)
+        end
+
+        local rHead = realChar:FindFirstChild("Head")
+        local rHrp = realChar:FindFirstChild("HumanoidRootPart")
+
+        local currentCF = getTargetVoidCFrame()
+
+        if rHead and rHead:IsA("BasePart") then
+            rHead.CanCollide = false
+            rHead.CFrame = currentCF
+        end
+
+        if rHrp and rHrp:IsA("BasePart") then
+            rHrp.CanCollide = false
+            rHrp.CFrame = currentCF
+        end
+
+        -- Reposition attached head accessories to the void target
+        for _, desc in ipairs(realChar:GetChildren()) do
+            if desc:IsA("Accessory") then
+                local h = desc:FindFirstChild("Handle")
+                if h and h:IsA("BasePart") then
+                    local att = h:FindFirstChildOfClass("Attachment")
+                    local isHeadAcc = (att and (att.Name:find("Hat") or att.Name:find("Hair") or att.Name:find("Face") or att.Name:find("Head")))
+                    if isHeadAcc then
+                        h.CanCollide = false
+                        h.CFrame = currentCF
+                    end
+                end
+            end
+        end
+    end)
+
+    -- 3. Heartbeat (PostSimulation): Zero out physics velocities so network owner replicates void lock
+    State.connections.heartbeat = RunService.Heartbeat:Connect(function()
+        if not State.enabled then return end
+        local realChar, fakeChar = getActiveCharacters()
+        if not (realChar and realChar.Parent) then return end
+
+        local currentCF = getTargetVoidCFrame()
+        local rHead = realChar:FindFirstChild("Head")
+        local rHrp = realChar:FindFirstChild("HumanoidRootPart")
+
+        if rHead and rHead:IsA("BasePart") then
+            rHead.Anchored = false
+            rHead.CanCollide = false
+            rHead.CFrame = currentCF
+            rHead.AssemblyLinearVelocity = Vector3.zero
+            rHead.AssemblyAngularVelocity = Vector3.zero
+        end
+
+        if rHrp and rHrp:IsA("BasePart") then
+            rHrp.Anchored = false
+            rHrp.CanCollide = false
+            rHrp.CFrame = currentCF
+            rHrp.AssemblyLinearVelocity = Vector3.zero
+            rHrp.AssemblyAngularVelocity = Vector3.zero
+        end
+
+        for _, desc in ipairs(realChar:GetChildren()) do
+            if desc:IsA("Accessory") then
+                local h = desc:FindFirstChild("Handle")
+                if h and h:IsA("BasePart") then
+                    local att = h:FindFirstChildOfClass("Attachment")
+                    local isHeadAcc = (att and (att.Name:find("Hat") or att.Name:find("Hair") or att.Name:find("Face") or att.Name:find("Head")))
+                    if isHeadAcc then
+                        h.Anchored = false
+                        h.CanCollide = false
+                        h.CFrame = currentCF
+                        h.AssemblyLinearVelocity = Vector3.zero
+                        h.AssemblyAngularVelocity = Vector3.zero
+                    end
+                end
+            end
+        end
+
+        -- Attacker Interception Radar: Check if any player's root is within 25 studs of the void trap
+        local trapPos = currentCF.Position
+        local trappedCount = 0
+        local lastTrappedName = nil
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local pHrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if pHrp then
+                    local dist = (pHrp.Position - trapPos).Magnitude
+                    if dist < 30 then
+                        trappedCount = trappedCount + 1
+                        lastTrappedName = p.DisplayName or p.Name
+                    end
+                end
+            end
+        end
+
+        if trappedCount > 0 then
+            valTrapped.Text = string.format("%d TRAPPED (%s)", trappedCount, lastTrappedName or "UNKNOWN")
+            valTrapped.TextColor3 = C.red
+        else
+            valTrapped.Text = "0 (NONE)"
+            valTrapped.TextColor3 = C.green
+        end
+    end)
+
+    -- 4. RenderStepped (Visual Integrity): Keep your avatar looking 100% normal on the map
+    State.connections.render = RunService.RenderStepped:Connect(function()
+        if not State.enabled then return end
+        local realChar, fakeChar = getActiveCharacters()
+
+        if State.visualMirror and fakeChar and fakeChar.Parent and fakeChar ~= realChar then
+            local fHead = fakeChar:FindFirstChild("Head")
+            if fHead and fHead:IsA("BasePart") then
+                fHead.Transparency = 0
+                fHead.LocalTransparencyModifier = 0
+                for _, d in ipairs(fHead:GetChildren()) do
+                    if d:IsA("Decal") then d.Transparency = 0 end
+                end
+            end
+            for _, acc in ipairs(fakeChar:GetChildren()) do
+                if acc:IsA("Accessory") then
+                    local h = acc:FindFirstChild("Handle")
+                    if h and h:IsA("BasePart") then
+                        h.Transparency = 0
+                        h.LocalTransparencyModifier = 0
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function toggleEvade()
+    State.enabled = not State.enabled
+    updateUIState()
+    if State.enabled then
+        startEvadeMechanism()
+    else
+        restoreNormalState()
+    end
+end
+
+btnToggle.MouseButton1Click:Connect(toggleEvade)
+
+-- Keybind B to toggle
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.B then
+        toggleEvade()
+    end
+end)
+
+-- Initial UI Setup
+updateUIState()
+print("[Unicorn's Studio] Evade Facebang / Void Replication Engine loaded successfully. Press B to toggle.")
