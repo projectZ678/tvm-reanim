@@ -207,7 +207,7 @@ local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, GUI_WIDTH, 0, GUI_HEIGHT)
 mainFrame.Position = UDim2.new(0.5, -math.floor(GUI_WIDTH / 2), 0.5, -math.floor(GUI_HEIGHT / 2))
 mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
-mainFrame.BackgroundTransparency = 0.25  -- glass effect
+mainFrame.BackgroundTransparency = 0.25
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
 mainFrame.Parent = gui
@@ -256,7 +256,7 @@ titleDivider.BorderSizePixel = 0
 titleDivider.ZIndex = 20
 titleDivider.Parent = titleBar
 
--- Window controls (mac dots) – now white & purple
+-- Window controls (mac dots) – white & purple
 local macBtns = Instance.new("Frame")
 macBtns.Size = UDim2.new(0, 44, 1, 0)
 macBtns.Position = UDim2.new(0, 12, 0, 0)
@@ -268,7 +268,7 @@ macBtns.Parent = titleBar
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 12, 0, 12)
 closeBtn.Position = UDim2.new(0, 0, 0.5, -6)
-closeBtn.BackgroundColor3 = Color3.fromRGB(220, 220, 230)  -- light white
+closeBtn.BackgroundColor3 = Color3.fromRGB(220, 220, 230)
 closeBtn.Text = ""
 closeBtn.ZIndex = 22
 closeBtn.Parent = macBtns
@@ -278,25 +278,33 @@ applyCorner(closeBtn, 6)
 local minBtn = Instance.new("TextButton")
 minBtn.Size = UDim2.new(0, 12, 0, 12)
 minBtn.Position = UDim2.new(0, 18, 0.5, -6)
-minBtn.BackgroundColor3 = C.accent  -- purple
+minBtn.BackgroundColor3 = C.accent
 minBtn.Text = ""
 minBtn.ZIndex = 22
 minBtn.Parent = macBtns
 applyCorner(minBtn, 6)
 
--- Title
+-- Title Label – now with bubbly Comic Sans font!
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "TitleLabel"
-titleLabel.Size = UDim2.new(0, 160, 0, 24)
-titleLabel.Position = UDim2.new(0, 48, 0.5, -12)
+titleLabel.Size = UDim2.new(0, 180, 0, 28)  -- slightly larger to fit the bubbly font
+titleLabel.Position = UDim2.new(0, 48, 0.5, -14)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "TVM Reanimation"
 titleLabel.TextColor3 = C.accent
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 16
+titleLabel.Font = Enum.Font.ComicSans   -- Playful, bubbly
+titleLabel.TextSize = 20
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.TextYAlignment = Enum.TextYAlignment.Center
 titleLabel.ZIndex = 21
 titleLabel.Parent = titleBar
+
+-- Add a subtle stroke outline to make it pop
+local titleStroke = Instance.new("UIStroke", titleLabel)
+titleStroke.Color = Color3.fromRGB(200, 180, 255)  -- lighter purple
+titleStroke.Thickness = 1
+titleStroke.Transparency = 0.5
+titleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 -- Enable/Disable capsule
 local toggleBtn = Instance.new("TextButton")
