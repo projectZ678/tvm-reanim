@@ -284,26 +284,27 @@ minBtn.ZIndex = 22
 minBtn.Parent = macBtns
 applyCorner(minBtn, 6)
 
--- Title Label – now with bubbly Comic Sans font!
+-- Title Label – Bubbly using Arial + thick stroke
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "TitleLabel"
-titleLabel.Size = UDim2.new(0, 180, 0, 28)  -- slightly larger to fit the bubbly font
+titleLabel.Size = UDim2.new(0, 180, 0, 28)
 titleLabel.Position = UDim2.new(0, 48, 0.5, -14)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "TVM Reanimation"
 titleLabel.TextColor3 = C.accent
-titleLabel.Font = Enum.Font.ComicSans   -- Playful, bubbly
+titleLabel.Font = Enum.Font.Arial          -- Clean, rounded sans-serif
 titleLabel.TextSize = 20
+titleLabel.TextBold = true
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.TextYAlignment = Enum.TextYAlignment.Center
 titleLabel.ZIndex = 21
 titleLabel.Parent = titleBar
 
--- Add a subtle stroke outline to make it pop
+-- Thicker stroke for a bubbly effect
 local titleStroke = Instance.new("UIStroke", titleLabel)
-titleStroke.Color = Color3.fromRGB(200, 180, 255)  -- lighter purple
-titleStroke.Thickness = 1
-titleStroke.Transparency = 0.5
+titleStroke.Color = Color3.fromRGB(200, 180, 255)
+titleStroke.Thickness = 2
+titleStroke.Transparency = 0.4
 titleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 -- Enable/Disable capsule
