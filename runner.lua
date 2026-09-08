@@ -8,7 +8,7 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 -- ═══════════════════════════════════════════════════
--- TVM THEME PALETTE (Black & Purple)
+-- TVM THEME PALETTE (Black & Purple‑Blue)
 -- ═══════════════════════════════════════════════════
 local C = {
     bg              = Color3.fromRGB(8, 8, 8),       -- Deep black
@@ -16,19 +16,19 @@ local C = {
     surface         = Color3.fromRGB(20, 20, 24),    -- Surface panel
     surfaceHover    = Color3.fromRGB(28, 28, 34),    -- Surface hover
     input           = Color3.fromRGB(22, 22, 26),    -- Input background
-    accent          = Color3.fromRGB(160, 80, 255),  -- Primary purple
-    accentDim       = Color3.fromRGB(120, 60, 200),  -- Muted purple
-    accentGlow      = Color3.fromRGB(180, 100, 255), -- Glow purple
+    accent          = Color3.fromRGB(120, 80, 255),  -- Primary purple‑blue
+    accentDim       = Color3.fromRGB(80, 50, 200),   -- Muted purple‑blue
+    accentGlow      = Color3.fromRGB(180, 120, 255), -- Glow purple‑blue
     danger          = Color3.fromRGB(230, 70, 70),   -- Red danger
     dangerDim       = Color3.fromRGB(160, 50, 50),   -- Muted danger
     success         = Color3.fromRGB(80, 220, 140),  -- Emerald success
     warning         = Color3.fromRGB(240, 180, 60),  -- Gold warning
     text            = Color3.fromRGB(225, 225, 235), -- Primary text
-    textMuted       = Color3.fromRGB(160, 150, 180), -- Muted text (purple‑ish)
+    textMuted       = Color3.fromRGB(160, 150, 200), -- Muted text (purple‑ish)
     textDim         = Color3.fromRGB(80, 75, 100),   -- Dim text
     divider         = Color3.fromRGB(45, 40, 60),    -- Subtle borders (purple tint)
     border          = Color3.fromRGB(60, 50, 80),    -- Card stroke border (purple tint)
-    green           = Color3.fromRGB(80, 220, 140),  -- Active green status
+    green           = Color3.fromRGB(80, 220, 140),  -- Active green status (kept for compatibility)
 }
 
 local function applyCorner(parent, radius)
@@ -520,7 +520,7 @@ local function updateNowPlayingUI(animName)
         local displayName = animName:gsub("%.lua$", "")
         nowPlayingLabel.Text = "▶  " .. displayName
         nowPlayingLabel.TextColor3 = C.text
-        npDot.BackgroundColor3 = C.green
+        npDot.BackgroundColor3 = C.accent  -- Purple‑blue dot when playing
         stopIcon.BackgroundColor3 = Color3.fromRGB(255, 90, 90)
         tween(stopBtn, {BackgroundColor3 = Color3.fromRGB(35, 20, 20)}, 0.2)
         tween(stopStroke, {Color = Color3.fromRGB(160, 50, 50), Transparency = 0.2}, 0.2)
@@ -1414,7 +1414,7 @@ end
 -- Helper: Apply visual state to Eternity Toggle with Back easing
 local function updateEternityToggleVisual(track, knob, glowStroke, isOn, animate)
     local targetTrackBg = isOn and Color3.fromRGB(25, 25, 25) or Color3.fromRGB(15, 15, 15)
-    local targetKnobBg = isOn and Color3.fromRGB(160, 80, 255) or Color3.fromRGB(100, 100, 100)  -- purple when on
+    local targetKnobBg = isOn and C.accent or Color3.fromRGB(100, 100, 100)  -- purple‑blue when on
     local targetKnobPos = isOn and UDim2.new(0, 25, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
     local targetGlowTrans = isOn and 0.65 or 1.0
 
