@@ -1,9 +1,3 @@
--- ══════════════════════════════════════════════════════════════════
--- ZEN STUDIO: REANIMATION TIMELINE SEQUENCER & VIDEO EDITOR
--- A professional video-editing suite for sequencing, trimming,
--- real-time avatar scrubbing, and merging Roblox reanimations.
--- ══════════════════════════════════════════════════════════════════
-
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
