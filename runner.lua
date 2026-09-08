@@ -8,27 +8,27 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 -- ═══════════════════════════════════════════════════
--- TVM THEME PALETTE (Black & Purple‑Blue)
+-- TVM THEME PALETTE (Glass + Purple‑Blue)
 -- ═══════════════════════════════════════════════════
 local C = {
-    bg              = Color3.fromRGB(8, 8, 8),       -- Deep black
-    bgCard          = Color3.fromRGB(14, 14, 16),    -- Dark glass card
-    surface         = Color3.fromRGB(20, 20, 24),    -- Surface panel
-    surfaceHover    = Color3.fromRGB(28, 28, 34),    -- Surface hover
-    input           = Color3.fromRGB(22, 22, 26),    -- Input background
-    accent          = Color3.fromRGB(120, 80, 255),  -- Primary purple‑blue
-    accentDim       = Color3.fromRGB(80, 50, 200),   -- Muted purple‑blue
-    accentGlow      = Color3.fromRGB(180, 120, 255), -- Glow purple‑blue
-    danger          = Color3.fromRGB(230, 70, 70),   -- Red danger
-    dangerDim       = Color3.fromRGB(160, 50, 50),   -- Muted danger
-    success         = Color3.fromRGB(80, 220, 140),  -- Emerald success
-    warning         = Color3.fromRGB(240, 180, 60),  -- Gold warning
-    text            = Color3.fromRGB(225, 225, 235), -- Primary text
-    textMuted       = Color3.fromRGB(160, 150, 200), -- Muted text (purple‑ish)
-    textDim         = Color3.fromRGB(80, 75, 100),   -- Dim text
-    divider         = Color3.fromRGB(45, 40, 60),    -- Subtle borders (purple tint)
-    border          = Color3.fromRGB(60, 50, 80),    -- Card stroke border (purple tint)
-    green           = Color3.fromRGB(80, 220, 140),  -- Active green status (kept for compatibility)
+    bg              = Color3.fromRGB(8, 8, 8),
+    bgCard          = Color3.fromRGB(14, 14, 16),
+    surface         = Color3.fromRGB(20, 20, 24),
+    surfaceHover    = Color3.fromRGB(28, 28, 34),
+    input           = Color3.fromRGB(22, 22, 26),
+    accent          = Color3.fromRGB(120, 80, 255),  -- Purple‑blue
+    accentDim       = Color3.fromRGB(80, 50, 200),
+    accentGlow      = Color3.fromRGB(180, 120, 255),
+    danger          = Color3.fromRGB(230, 70, 70),
+    dangerDim       = Color3.fromRGB(160, 50, 50),
+    success         = Color3.fromRGB(80, 220, 140),
+    warning         = Color3.fromRGB(240, 180, 60),
+    text            = Color3.fromRGB(225, 225, 235),
+    textMuted       = Color3.fromRGB(160, 150, 200),
+    textDim         = Color3.fromRGB(80, 75, 100),
+    divider         = Color3.fromRGB(45, 40, 60),
+    border          = Color3.fromRGB(60, 50, 80),
+    green           = Color3.fromRGB(80, 220, 140),
 }
 
 local function applyCorner(parent, radius)
@@ -77,7 +77,7 @@ else
 end
 
 -- ═══════════════════════════════════════════════════
--- 2. LOAD ANIMATIONS LIST (Merge Main + Unicorns)
+-- 2. LOAD ANIMATIONS LIST
 -- ═══════════════════════════════════════════════════
 local animations = {}
 local anim_success, anim_data = pcall(function()
@@ -88,7 +88,6 @@ local anim_success, anim_data = pcall(function()
 end)
 
 if anim_success and type(anim_data) == "string" then
-    -- Strip UTF-8 BOM if present
     if anim_data:sub(1, 3) == "\239\187\191" then
         anim_data = anim_data:sub(4)
     end
@@ -105,7 +104,6 @@ if anim_success and type(anim_data) == "string" then
                 })
             end
         end
-        -- Sort alphabetically
         table.sort(animations, function(a, b)
             return a.name:lower() < b.name:lower()
         end)
@@ -154,7 +152,6 @@ if savedConfig.hiddenLimbs then
     end
 end
 
--- Inject saved custom animations into catalog
 if savedConfig.customAnims and #savedConfig.customAnims > 0 then
     for _, ca in ipairs(savedConfig.customAnims) do
         table.insert(animations, {
@@ -175,7 +172,6 @@ local function saveConfig()
     end
 end
 
--- Preload Favorites in background
 task.spawn(function()
     task.wait(2)
     if api and api.preload_animation then
@@ -192,7 +188,7 @@ task.spawn(function()
 end)
 
 -- ═══════════════════════════════════════════════════
--- 4. GUI CONSTRUCTION
+-- 4. GUI CONSTRUCTION (Glass transparent)
 -- ═══════════════════════════════════════════════════
 local currentSpeed = savedConfig.speed or 1.0
 local currentPlayingAnim = nil
@@ -210,18 +206,23 @@ local GUI_HEIGHT = 525
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, GUI_WIDTH, 0, GUI_HEIGHT)
 mainFrame.Position = UDim2.new(0.5, -math.floor(GUI_WIDTH / 2), 0.5, -math.floor(GUI_HEIGHT / 2))
-mainFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
+mainFrame.BackgroundTransparency = 0.25  -- glass effect
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
 mainFrame.Parent = gui
 
 applyCorner(mainFrame, 14)
 
--- Eternity vertical dark glass gradient
+-- Glass gradient overlay
 local mainGradient = Instance.new("UIGradient", mainFrame)
 mainGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(24, 24, 24)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 8))
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 25, 30)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 10))
+})
+mainGradient.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.3),
+    NumberSequenceKeypoint.new(1, 0.6)
 })
 mainGradient.Rotation = 90
 
@@ -236,10 +237,11 @@ mainStrokeGrad.Transparency = NumberSequence.new({
 })
 mainStrokeGrad.Rotation = 45
 
--- Title Bar
+-- Title Bar (glass)
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 44)
-titleBar.BackgroundColor3 = Color3.fromRGB(14, 14, 16)
+titleBar.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+titleBar.BackgroundTransparency = 0.4
 titleBar.BorderSizePixel = 0
 titleBar.ZIndex = 20
 titleBar.Parent = mainFrame
@@ -249,10 +251,12 @@ local titleDivider = Instance.new("Frame")
 titleDivider.Size = UDim2.new(1, 0, 0, 1)
 titleDivider.Position = UDim2.new(0, 0, 1, -1)
 titleDivider.BackgroundColor3 = C.divider
+titleDivider.BackgroundTransparency = 0.7
 titleDivider.BorderSizePixel = 0
 titleDivider.ZIndex = 20
 titleDivider.Parent = titleBar
 
+-- Window controls (mac dots) – now white & purple
 local macBtns = Instance.new("Frame")
 macBtns.Size = UDim2.new(0, 44, 1, 0)
 macBtns.Position = UDim2.new(0, 12, 0, 0)
@@ -260,25 +264,27 @@ macBtns.BackgroundTransparency = 1
 macBtns.ZIndex = 21
 macBtns.Parent = titleBar
 
+-- Close button → White with hover glow
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 12, 0, 12)
 closeBtn.Position = UDim2.new(0, 0, 0.5, -6)
-closeBtn.BackgroundColor3 = C.danger
+closeBtn.BackgroundColor3 = Color3.fromRGB(220, 220, 230)  -- light white
 closeBtn.Text = ""
 closeBtn.ZIndex = 22
 closeBtn.Parent = macBtns
 applyCorner(closeBtn, 6)
 
+-- Minimize button → Purple (accent)
 local minBtn = Instance.new("TextButton")
 minBtn.Size = UDim2.new(0, 12, 0, 12)
 minBtn.Position = UDim2.new(0, 18, 0.5, -6)
-minBtn.BackgroundColor3 = C.warning
+minBtn.BackgroundColor3 = C.accent  -- purple
 minBtn.Text = ""
 minBtn.ZIndex = 22
 minBtn.Parent = macBtns
 applyCorner(minBtn, 6)
 
--- Title Label (replaces image)
+-- Title
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "TitleLabel"
 titleLabel.Size = UDim2.new(0, 160, 0, 24)
@@ -292,11 +298,12 @@ titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.ZIndex = 21
 titleLabel.Parent = titleBar
 
--- Enable / Disable Reanimation Capsule Button
+-- Enable/Disable capsule
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Size = UDim2.new(0, 118, 0, 26)
 toggleBtn.Position = UDim2.new(1, -128, 0.5, -13)
 toggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+toggleBtn.BackgroundTransparency = 0.3
 toggleBtn.Text = "Enable Reanim"
 toggleBtn.TextColor3 = C.text
 toggleBtn.Font = Enum.Font.GothamBold
@@ -306,7 +313,7 @@ toggleBtn.Parent = titleBar
 applyCorner(toggleBtn, 100)
 local toggleStroke = applyStroke(toggleBtn, C.border, 1, 0.2)
 
--- Body Container (houses tabs, page content, and now playing bar; hidden during minimize)
+-- Body container
 local bodyContainer = Instance.new("Frame")
 bodyContainer.Name = "BodyContainer"
 bodyContainer.Size = UDim2.new(1, 0, 1, -48)
@@ -342,15 +349,23 @@ local function toggleMinimize()
     end
 end
 
-minBtn.MouseEnter:Connect(function() tween(minBtn, {BackgroundColor3 = Color3.fromRGB(255, 220, 100)}, 0.15) end)
-minBtn.MouseLeave:Connect(function() tween(minBtn, {BackgroundColor3 = Color3.fromRGB(255, 190, 60)}, 0.15) end)
+minBtn.MouseEnter:Connect(function()
+    tween(minBtn, {BackgroundColor3 = Color3.fromRGB(160, 120, 255)}, 0.15)
+end)
+minBtn.MouseLeave:Connect(function()
+    tween(minBtn, {BackgroundColor3 = C.accent}, 0.15)
+end)
 minBtn.MouseButton1Click:Connect(toggleMinimize)
 
-closeBtn.MouseEnter:Connect(function() tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(255, 130, 130)}, 0.15) end)
-closeBtn.MouseLeave:Connect(function() tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(255, 90, 90)}, 0.15) end)
+closeBtn.MouseEnter:Connect(function()
+    tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}, 0.15)
+end)
+closeBtn.MouseLeave:Connect(function()
+    tween(closeBtn, {BackgroundColor3 = Color3.fromRGB(220, 220, 230)}, 0.15)
+end)
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
--- Window Dragging
+-- Dragging
 local dragging, dragStart, startPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -374,22 +389,22 @@ titleBar.InputChanged:Connect(function(input)
 end)
 
 -- ═══════════════════════════════════════════════════
--- 5. SUB-TAB CAPSULE BAR (from forjnkie.lua createSubTabBar)
+-- 5. SUB‑TAB BAR (glass)
 -- ═══════════════════════════════════════════════════
 local tabNames = { "Reanims", "Favs", "Custom", "Binds", "States", "Speed", "Limbs" }
 local tabButtons = {}
-local switchTab -- forward declaration for early click binding
+local switchTab
 
 local subTabBar = Instance.new("Frame")
 subTabBar.Name = "SubTabBar"
 subTabBar.Size = UDim2.new(1, -20, 0, 34)
 subTabBar.Position = UDim2.new(0, 10, 0, 8)
-subTabBar.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-subTabBar.BackgroundTransparency = 0.2
+subTabBar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+subTabBar.BackgroundTransparency = 0.5
 subTabBar.BorderSizePixel = 0
 subTabBar.ClipsDescendants = true
 subTabBar.Parent = bodyContainer
-applyCorner(subTabBar, 100) -- Capsule shape
+applyCorner(subTabBar, 100)
 
 local subTabStroke = applyStroke(subTabBar, C.accent, 1.2, 0)
 local subStrokeGrad = Instance.new("UIGradient", subTabStroke)
@@ -412,6 +427,7 @@ subBarGrad.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, Color3.fromRGB(36, 36, 44)),
     ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 18, 22))
 })
+subBarGrad.Transparency = NumberSequence.new(0.6)
 subBarGrad.Rotation = 45
 
 local tabsScroll = Instance.new("ScrollingFrame")
@@ -438,14 +454,14 @@ for i, tName in ipairs(tabNames) do
     local tb = Instance.new("TextButton")
     tb.Size = UDim2.new(0, 52, 1, 0)
     tb.BackgroundColor3 = (i == 1) and C.accent or Color3.fromRGB(30, 30, 35)
-    tb.BackgroundTransparency = (i == 1) and 0 or 0.5
+    tb.BackgroundTransparency = (i == 1) and 0.2 or 0.6
     tb.Text = tName
     tb.TextColor3 = (i == 1) and Color3.fromRGB(8, 8, 10) or C.textMuted
     tb.Font = (i == 1) and Enum.Font.GothamBold or Enum.Font.GothamMedium
     tb.TextSize = 10
     tb.AutoButtonColor = false
     tb.Parent = tabsScroll
-    applyCorner(tb, 100) -- Capsule shape
+    applyCorner(tb, 100)
     tabButtons[tName] = { btn = tb }
 
     local function onTabClick()
@@ -460,16 +476,17 @@ for i, tName in ipairs(tabNames) do
 end
 
 -- ═══════════════════════════════════════════════════
--- 6. NOW PLAYING CAPSULE DOCK & STOP BUTTON
+-- 6. NOW PLAYING CAPSULE
 -- ═══════════════════════════════════════════════════
 local npBar = Instance.new("Frame")
 npBar.Size = UDim2.new(1, -20, 0, 32)
 npBar.Position = UDim2.new(0, 10, 1, -40)
 npBar.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
+npBar.BackgroundTransparency = 0.5
 npBar.BorderSizePixel = 0
 npBar.ZIndex = 15
 npBar.Parent = bodyContainer
-applyCorner(npBar, 100) -- Capsule dock
+applyCorner(npBar, 100)
 local npStroke = applyStroke(npBar, C.border, 1, 0.4)
 
 local npDot = Instance.new("Frame")
@@ -494,11 +511,11 @@ nowPlayingLabel.TextTruncate = Enum.TextTruncate.AtEnd
 nowPlayingLabel.ZIndex = 16
 nowPlayingLabel.Parent = npBar
 
--- Stop Button (glass circle with square stop icon)
 local stopBtn = Instance.new("TextButton")
 stopBtn.Size = UDim2.new(0, 22, 0, 22)
 stopBtn.Position = UDim2.new(1, -28, 0.5, -11)
 stopBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+stopBtn.BackgroundTransparency = 0.4
 stopBtn.Text = ""
 stopBtn.ZIndex = 16
 stopBtn.Parent = npBar
@@ -520,16 +537,16 @@ local function updateNowPlayingUI(animName)
         local displayName = animName:gsub("%.lua$", "")
         nowPlayingLabel.Text = "▶  " .. displayName
         nowPlayingLabel.TextColor3 = C.text
-        npDot.BackgroundColor3 = C.accent  -- Purple‑blue dot when playing
+        npDot.BackgroundColor3 = C.accent
         stopIcon.BackgroundColor3 = Color3.fromRGB(255, 90, 90)
-        tween(stopBtn, {BackgroundColor3 = Color3.fromRGB(35, 20, 20)}, 0.2)
+        tween(stopBtn, {BackgroundColor3 = Color3.fromRGB(35, 20, 20), BackgroundTransparency = 0.2}, 0.2)
         tween(stopStroke, {Color = Color3.fromRGB(160, 50, 50), Transparency = 0.2}, 0.2)
     else
         nowPlayingLabel.Text = "No animation playing"
         nowPlayingLabel.TextColor3 = C.textMuted
         npDot.BackgroundColor3 = C.textMuted
         stopIcon.BackgroundColor3 = C.textMuted
-        tween(stopBtn, {BackgroundColor3 = Color3.fromRGB(24, 24, 24)}, 0.2)
+        tween(stopBtn, {BackgroundColor3 = Color3.fromRGB(24, 24, 24), BackgroundTransparency = 0.4}, 0.2)
         tween(stopStroke, {Color = C.divider, Transparency = 0.5}, 0.2)
     end
 end
@@ -555,7 +572,7 @@ api.on_animation_stop(function()
 end)
 
 -- ═══════════════════════════════════════════════════
--- 7. TAB PANELS CONTAINER
+-- 7. TAB PANELS (glass cards)
 -- ═══════════════════════════════════════════════════
 local contentArea = Instance.new("Frame")
 contentArea.Size = UDim2.new(1, -20, 1, -94)
@@ -563,7 +580,7 @@ contentArea.Position = UDim2.new(0, 10, 0, 48)
 contentArea.BackgroundTransparency = 1
 contentArea.Parent = bodyContainer
 
--- PANEL 1: REANIMS & FAVS (Shares animation virtual list)
+-- List panel (Reanims / Favs / Custom)
 local listPanel = Instance.new("Frame")
 listPanel.Size = UDim2.new(1, 0, 1, 0)
 listPanel.BackgroundTransparency = 1
@@ -574,6 +591,7 @@ local searchBox = Instance.new("TextBox")
 searchBox.Size = UDim2.new(1, -96, 0, 30)
 searchBox.Position = UDim2.new(0, 0, 0, 0)
 searchBox.BackgroundColor3 = C.input
+searchBox.BackgroundTransparency = 0.5
 searchBox.PlaceholderText = "Search animations..."
 searchBox.PlaceholderColor3 = C.textMuted
 searchBox.Text = ""
@@ -595,6 +613,7 @@ local addCustomBtn = Instance.new("TextButton")
 addCustomBtn.Size = UDim2.new(0, 90, 0, 30)
 addCustomBtn.Position = UDim2.new(1, -90, 0, 0)
 addCustomBtn.BackgroundColor3 = C.surface
+addCustomBtn.BackgroundTransparency = 0.4
 addCustomBtn.Text = "+ Add Custom"
 addCustomBtn.TextColor3 = C.accent
 addCustomBtn.Font = Enum.Font.GothamBold
@@ -641,7 +660,7 @@ emptyCustomLabel.TextSize = 11
 emptyCustomLabel.Visible = false
 emptyCustomLabel.Parent = listPanel
 
--- PANEL 2: BINDS PANEL
+-- Binds panel
 local bindsPanel = Instance.new("ScrollingFrame")
 bindsPanel.Size = UDim2.new(1, 0, 1, 0)
 bindsPanel.BackgroundTransparency = 1
@@ -677,7 +696,7 @@ emptyBindsLabel.TextSize = 11
 emptyBindsLabel.Visible = false
 emptyBindsLabel.Parent = bindsPanel
 
--- PANEL 3: SPEED PANEL
+-- Speed panel
 local speedPanel = Instance.new("ScrollingFrame")
 speedPanel.Size = UDim2.new(1, 0, 1, 0)
 speedPanel.BackgroundTransparency = 1
@@ -693,10 +712,11 @@ speedListLayout.Padding = UDim.new(0, 10)
 speedListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 speedListLayout.Parent = speedPanel
 
--- Speed Card 1: Continuous Slider
+-- Slider card (glass)
 local sliderCard = Instance.new("Frame")
 sliderCard.Size = UDim2.new(1, 0, 0, 78)
 sliderCard.BackgroundColor3 = C.bgCard
+sliderCard.BackgroundTransparency = 0.4
 sliderCard.Parent = speedPanel
 applyCorner(sliderCard, 8)
 applyStroke(sliderCard, C.divider, 1, 0)
@@ -716,6 +736,7 @@ local sliderTrack = Instance.new("Frame")
 sliderTrack.Size = UDim2.new(1, -130, 0, 6)
 sliderTrack.Position = UDim2.new(0, 10, 0, 46)
 sliderTrack.BackgroundColor3 = C.surface
+sliderTrack.BackgroundTransparency = 0.5
 sliderTrack.BorderSizePixel = 0
 sliderTrack.Parent = sliderCard
 applyCorner(sliderTrack, 3)
@@ -723,6 +744,7 @@ applyCorner(sliderTrack, 3)
 local sliderFill = Instance.new("Frame")
 sliderFill.Size = UDim2.new(0.3, 0, 1, 0)
 sliderFill.BackgroundColor3 = C.accent
+sliderFill.BackgroundTransparency = 0.2
 sliderFill.BorderSizePixel = 0
 sliderFill.Parent = sliderTrack
 applyCorner(sliderFill, 3)
@@ -739,6 +761,7 @@ local sliderValLabel = Instance.new("TextLabel")
 sliderValLabel.Size = UDim2.new(0, 48, 0, 22)
 sliderValLabel.Position = UDim2.new(1, -114, 0, 38)
 sliderValLabel.BackgroundColor3 = C.input
+sliderValLabel.BackgroundTransparency = 0.4
 sliderValLabel.Text = string.format("%.1fx", currentSpeed)
 sliderValLabel.TextColor3 = C.accent
 sliderValLabel.Font = Enum.Font.GothamBold
@@ -751,6 +774,7 @@ local resetSpeedBtn = Instance.new("TextButton")
 resetSpeedBtn.Size = UDim2.new(0, 54, 0, 22)
 resetSpeedBtn.Position = UDim2.new(1, -60, 0, 38)
 resetSpeedBtn.BackgroundColor3 = C.surface
+resetSpeedBtn.BackgroundTransparency = 0.4
 resetSpeedBtn.Text = "Reset 1.0x"
 resetSpeedBtn.TextColor3 = C.text
 resetSpeedBtn.Font = Enum.Font.GothamSemibold
@@ -800,10 +824,11 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Speed Card 2: Presets & Keybinds
+-- Preset card (glass)
 local presetCard = Instance.new("Frame")
 presetCard.Size = UDim2.new(1, 0, 0, 110)
 presetCard.BackgroundColor3 = C.bgCard
+presetCard.BackgroundTransparency = 0.4
 presetCard.Parent = speedPanel
 applyCorner(presetCard, 8)
 applyStroke(presetCard, C.divider, 1, 0)
@@ -846,6 +871,7 @@ for i, spd in ipairs(speedPresets) do
     sBtn.Size = UDim2.new(pW, -4, 0, 24)
     sBtn.Position = UDim2.new((i - 1) * pW, 2, 0, 0)
     sBtn.BackgroundColor3 = C.surface
+    sBtn.BackgroundTransparency = 0.4
     sBtn.Text = string.format("%.1fx", spd)
     sBtn.TextColor3 = C.text
     sBtn.Font = Enum.Font.GothamBold
@@ -862,6 +888,7 @@ for i, spd in ipairs(speedPresets) do
     kBtn.Size = UDim2.new(pW, -4, 0, 20)
     kBtn.Position = UDim2.new((i - 1) * pW, 2, 0, 28)
     kBtn.BackgroundColor3 = C.input
+    kBtn.BackgroundTransparency = 0.4
     local bound = savedConfig.speedBinds[tostring(spd)]
     kBtn.Text = bound and ("[" .. bound .. "]") or "[+]"
     kBtn.TextColor3 = bound and C.accent or C.textMuted
@@ -886,7 +913,7 @@ for i, spd in ipairs(speedPresets) do
     end)
 end
 
--- PANEL 4: STATES PANEL
+-- States panel
 local statesPanel = Instance.new("ScrollingFrame")
 statesPanel.Size = UDim2.new(1, 0, 1, 0)
 statesPanel.BackgroundTransparency = 1
@@ -927,12 +954,12 @@ local stateSelectButtons = {}
 local modalSelectingState = nil
 
 -- ═══════════════════════════════════════════════════
--- 8. ANIMATION SELECTOR MODAL (For States Tab)
+-- 8. ANIMATION SELECTOR MODAL
 -- ═══════════════════════════════════════════════════
 modalOverlay = Instance.new("Frame")
 modalOverlay.Size = UDim2.new(1, 0, 1, 0)
 modalOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-modalOverlay.BackgroundTransparency = 0.4
+modalOverlay.BackgroundTransparency = 0.5
 modalOverlay.BorderSizePixel = 0
 modalOverlay.ZIndex = 50
 modalOverlay.Visible = false
@@ -942,6 +969,7 @@ local modalCard = Instance.new("Frame")
 modalCard.Size = UDim2.new(0, 330, 0, 400)
 modalCard.Position = UDim2.new(0.5, -165, 0.5, -200)
 modalCard.BackgroundColor3 = C.bgCard
+modalCard.BackgroundTransparency = 0.2
 modalCard.BorderSizePixel = 0
 modalCard.ZIndex = 51
 modalCard.Parent = modalOverlay
@@ -964,6 +992,7 @@ local modalCloseBtn = Instance.new("TextButton")
 modalCloseBtn.Size = UDim2.new(0, 24, 0, 24)
 modalCloseBtn.Position = UDim2.new(1, -34, 0, 10)
 modalCloseBtn.BackgroundColor3 = C.surface
+modalCloseBtn.BackgroundTransparency = 0.4
 modalCloseBtn.Text = "✕"
 modalCloseBtn.TextColor3 = C.textMuted
 modalCloseBtn.Font = Enum.Font.GothamBold
@@ -981,6 +1010,7 @@ local modalSearch = Instance.new("TextBox")
 modalSearch.Size = UDim2.new(1, -28, 0, 30)
 modalSearch.Position = UDim2.new(0, 14, 0, 44)
 modalSearch.BackgroundColor3 = C.input
+modalSearch.BackgroundTransparency = 0.4
 modalSearch.PlaceholderText = "Search animations to assign..."
 modalSearch.PlaceholderColor3 = C.textMuted
 modalSearch.Text = ""
@@ -1030,6 +1060,7 @@ local function populateModalList(filter)
             local ab = Instance.new("TextButton")
             ab.Size = UDim2.new(1, -6, 0, 28)
             ab.BackgroundColor3 = C.surface
+            ab.BackgroundTransparency = 0.3
             ab.Text = a.name
             ab.TextColor3 = C.text
             ab.Font = Enum.Font.GothamMedium
@@ -1067,12 +1098,12 @@ modalSearch:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 -- ═══════════════════════════════════════════════════
--- 8B. ADD CUSTOM ANIMATION MODAL
+-- 8B. ADD CUSTOM ANIMATION MODAL (glass)
 -- ═══════════════════════════════════════════════════
 addCustomModal = Instance.new("Frame")
 addCustomModal.Size = UDim2.new(1, 0, 1, 0)
 addCustomModal.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-addCustomModal.BackgroundTransparency = 0.4
+addCustomModal.BackgroundTransparency = 0.5
 addCustomModal.BorderSizePixel = 0
 addCustomModal.ZIndex = 50
 addCustomModal.Visible = false
@@ -1082,6 +1113,7 @@ local addCard = Instance.new("Frame")
 addCard.Size = UDim2.new(0, 330, 0, 380)
 addCard.Position = UDim2.new(0.5, -165, 0.5, -190)
 addCard.BackgroundColor3 = C.bgCard
+addCard.BackgroundTransparency = 0.2
 addCard.BorderSizePixel = 0
 addCard.ZIndex = 51
 addCard.Parent = addCustomModal
@@ -1104,6 +1136,7 @@ local addCloseBtn = Instance.new("TextButton")
 addCloseBtn.Size = UDim2.new(0, 24, 0, 24)
 addCloseBtn.Position = UDim2.new(1, -34, 0, 10)
 addCloseBtn.BackgroundColor3 = C.surface
+addCloseBtn.BackgroundTransparency = 0.4
 addCloseBtn.Text = "✕"
 addCloseBtn.TextColor3 = C.textMuted
 addCloseBtn.Font = Enum.Font.GothamBold
@@ -1116,6 +1149,7 @@ local addNameBox = Instance.new("TextBox")
 addNameBox.Size = UDim2.new(1, -28, 0, 28)
 addNameBox.Position = UDim2.new(0, 14, 0, 44)
 addNameBox.BackgroundColor3 = C.input
+addNameBox.BackgroundTransparency = 0.4
 addNameBox.PlaceholderText = "Animation Name (optional)"
 addNameBox.PlaceholderColor3 = C.textMuted
 addNameBox.Text = ""
@@ -1136,6 +1170,7 @@ local addDataBox = Instance.new("TextBox")
 addDataBox.Size = UDim2.new(1, -28, 0, 210)
 addDataBox.Position = UDim2.new(0, 14, 0, 80)
 addDataBox.BackgroundColor3 = C.input
+addDataBox.BackgroundTransparency = 0.4
 addDataBox.PlaceholderText = "Paste keyframe script or table here...\n(Or press Ctrl+V to paste from clipboard)"
 addDataBox.PlaceholderColor3 = C.textMuted
 addDataBox.Text = ""
@@ -1174,6 +1209,7 @@ local addSubmitBtn = Instance.new("TextButton")
 addSubmitBtn.Size = UDim2.new(1, -28, 0, 32)
 addSubmitBtn.Position = UDim2.new(0, 14, 1, -44)
 addSubmitBtn.BackgroundColor3 = Color3.fromRGB(24, 40, 30)
+addSubmitBtn.BackgroundTransparency = 0.2
 addSubmitBtn.Text = "+ Add Animation"
 addSubmitBtn.TextColor3 = C.green
 addSubmitBtn.Font = Enum.Font.GothamBold
@@ -1252,6 +1288,7 @@ for _, st in ipairs(stateTypes) do
     local sRow = Instance.new("Frame")
     sRow.Size = UDim2.new(1, 0, 0, 42)
     sRow.BackgroundColor3 = C.bgCard
+    sRow.BackgroundTransparency = 0.4
     sRow.Parent = statesPanel
     applyCorner(sRow, 6)
     applyStroke(sRow, C.divider, 1, 0)
@@ -1272,6 +1309,7 @@ for _, st in ipairs(stateTypes) do
     sBtn.Size = UDim2.new(1, -150, 0, 26)
     sBtn.Position = UDim2.new(0, 84, 0.5, -13)
     sBtn.BackgroundColor3 = C.surface
+    sBtn.BackgroundTransparency = 0.3
     sBtn.Text = currentAssignment and currentAssignment.name or "None"
     sBtn.TextColor3 = currentAssignment and Color3.fromRGB(100, 220, 120) or C.textMuted
     sBtn.Font = Enum.Font.GothamMedium
@@ -1301,6 +1339,7 @@ for _, st in ipairs(stateTypes) do
     clearBtn.Size = UDim2.new(0, 52, 0, 26)
     clearBtn.Position = UDim2.new(1, -60, 0.5, -13)
     clearBtn.BackgroundColor3 = C.surface
+    clearBtn.BackgroundTransparency = 0.3
     clearBtn.Text = "Clear"
     clearBtn.TextColor3 = C.textMuted
     clearBtn.Font = Enum.Font.GothamSemibold
@@ -1323,7 +1362,7 @@ for _, st in ipairs(stateTypes) do
     end)
 end
 
--- PANEL 5: LIMBS TAB (Hide / Show Body Parts & Hats)
+-- PANEL 5: LIMBS TAB
 local limbsPanel = Instance.new("ScrollingFrame")
 limbsPanel.Size = UDim2.new(1, 0, 1, 0)
 limbsPanel.BackgroundTransparency = 1
@@ -1361,13 +1400,13 @@ limbsHeader.TextXAlignment = Enum.TextXAlignment.Left
 limbsHeader.LayoutOrder = 1
 limbsHeader.Parent = limbsPanel
 
--- Helper: Create Eternity Capsule Toggle Switch (forjnkie.lua theme)
+-- Helper: Create Eternity Capsule Toggle Switch (glass)
 local function createEternityToggleSwitch(parent, posX, posY)
     local track = Instance.new("Frame", parent)
     track.Size = UDim2.new(0, 44, 0, 22)
     track.Position = UDim2.new(1, posX or -54, 0.5, posY or -11)
     track.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-    track.BackgroundTransparency = 0.5
+    track.BackgroundTransparency = 0.6
     track.BorderSizePixel = 0
     applyCorner(track, 100)
 
@@ -1411,10 +1450,10 @@ local function createEternityToggleSwitch(parent, posX, posY)
     return track, knob, glowStroke
 end
 
--- Helper: Apply visual state to Eternity Toggle with Back easing
+-- Apply visual state to toggle
 local function updateEternityToggleVisual(track, knob, glowStroke, isOn, animate)
     local targetTrackBg = isOn and Color3.fromRGB(25, 25, 25) or Color3.fromRGB(15, 15, 15)
-    local targetKnobBg = isOn and C.accent or Color3.fromRGB(100, 100, 100)  -- purple‑blue when on
+    local targetKnobBg = isOn and C.accent or Color3.fromRGB(100, 100, 100)
     local targetKnobPos = isOn and UDim2.new(0, 25, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
     local targetGlowTrans = isOn and 0.65 or 1.0
 
@@ -1434,10 +1473,11 @@ local function updateEternityToggleVisual(track, knob, glowStroke, isOn, animate
     end
 end
 
--- Master Limbs Toggle Card
+-- Master Limbs Toggle Card (glass)
 local masterCard = Instance.new("Frame")
 masterCard.Size = UDim2.new(1, 0, 0, 46)
 masterCard.BackgroundColor3 = C.surface
+masterCard.BackgroundTransparency = 0.4
 masterCard.BorderSizePixel = 0
 masterCard.LayoutOrder = 2
 masterCard.Parent = limbsPanel
@@ -1616,8 +1656,6 @@ masterBtn.MouseButton1Click:Connect(function()
         end
     end
 
-    -- If 0 hidden (all visible), turn all OFF (hide all)
-    -- If 1 or more hidden, turn all ON (show all)
     local targetHidden = (hiddenCount == 0)
     for _, ldef in ipairs(limbDefinitions) do
         setLimbHidden(ldef, targetHidden, true, true)
@@ -1629,6 +1667,7 @@ for idx, ldef in ipairs(limbDefinitions) do
     local lRow = Instance.new("Frame")
     lRow.Size = UDim2.new(1, 0, 0, 44)
     lRow.BackgroundColor3 = C.surface
+    lRow.BackgroundTransparency = 0.4
     lRow.BorderSizePixel = 0
     lRow.LayoutOrder = 3 + idx
     lRow.Parent = limbsPanel
@@ -1668,7 +1707,6 @@ for idx, ldef in ipairs(limbDefinitions) do
     descLbl.TextTruncate = Enum.TextTruncate.AtEnd
     descLbl.Parent = infoFrame
 
-    -- Check if currently hidden
     local isCurrentlyHidden = false
     for _, p in ipairs(ldef.parts) do
         if savedConfig.hiddenLimbs[p] or (_G.hiddenBodyParts and _G.hiddenBodyParts[p]) then
@@ -1744,8 +1782,6 @@ local function updateLimbsUI()
     updateMasterToggleVisual(false)
 end
 
-
--- Continuous RenderStepped loop to enforce clone transparency and nametag hiding
 RunService.RenderStepped:Connect(function()
     local clone = api and api.get_clone and api.get_clone()
     if not clone then return end
@@ -1783,9 +1819,8 @@ end)
 
 limbsPanel.CanvasSize = UDim2.new(0, 0, 0, #limbDefinitions * 56 + 80)
 
-
 -- ═══════════════════════════════════════════════════
--- 9. REANIMS & FAVS LIST ENGINE (Fast Virtualized)
+-- 9. REANIMS & FAVS LIST ENGINE
 -- ═══════════════════════════════════════════════════
 local ROW_HEIGHT = 38
 local currentlyBinding = nil
@@ -1857,6 +1892,7 @@ local function populateList()
         local row = Instance.new("Frame")
         row.Size = UDim2.new(1, -6, 0, ROW_HEIGHT)
         row.BackgroundColor3 = C.surface
+        row.BackgroundTransparency = 0.3
         row.BorderSizePixel = 0
         row.LayoutOrder = i
         row.Parent = scrollList
@@ -1891,7 +1927,7 @@ local function populateList()
             end
         end)
 
-        -- Play Button (Animation Title)
+        -- Play Button
         local isCustomAnim = anim.isCustom or (anim.category == "Custom") or (anim.category == "Recorded")
         local playBtn = Instance.new("TextButton")
         playBtn.Size = UDim2.new(1, isCustomAnim and -108 or -78, 1, 0)
@@ -1938,6 +1974,7 @@ local function populateList()
         keyBtn.Size = UDim2.new(0, 38, 0, 22)
         keyBtn.Position = UDim2.new(1, isCustomAnim and -72 or -44, 0.5, -11)
         keyBtn.BackgroundColor3 = C.input
+        keyBtn.BackgroundTransparency = 0.4
         local boundKey = savedConfig.binds[anim.name]
         keyBtn.Text = boundKey and ("[" .. boundKey .. "]") or "[+]"
         keyBtn.TextColor3 = boundKey and C.accent or C.textMuted
@@ -1965,6 +2002,7 @@ local function populateList()
             delBtn.Size = UDim2.new(0, 24, 0, 22)
             delBtn.Position = UDim2.new(1, -28, 0.5, -11)
             delBtn.BackgroundColor3 = C.surface
+            delBtn.BackgroundTransparency = 0.4
             delBtn.Text = "✕"
             delBtn.TextColor3 = C.textMuted
             delBtn.Font = Enum.Font.GothamBold
@@ -2008,7 +2046,7 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 -- ═══════════════════════════════════════════════════
--- 10. BINDS LIST ENGINE
+-- 10. BINDS LIST
 -- ═══════════════════════════════════════════════════
 local function populateBindsList()
     for _, child in ipairs(bindsPanel:GetChildren()) do
@@ -2017,7 +2055,6 @@ local function populateBindsList()
 
     local boundItems = {}
     for animName, keyName in pairs(savedConfig.binds) do
-        -- Find path
         local path = nil
         for _, a in ipairs(animations) do
             if a.name == animName then path = a.path break end
@@ -2037,6 +2074,7 @@ local function populateBindsList()
         local row = Instance.new("Frame")
         row.Size = UDim2.new(1, -6, 0, 36)
         row.BackgroundColor3 = C.surface
+        row.BackgroundTransparency = 0.3
         row.BorderSizePixel = 0
         row.LayoutOrder = i + 1
         row.Parent = bindsPanel
@@ -2063,6 +2101,7 @@ local function populateBindsList()
         keyBtn.Size = UDim2.new(0, 48, 0, 24)
         keyBtn.Position = UDim2.new(1, -100, 0.5, -12)
         keyBtn.BackgroundColor3 = C.input
+        keyBtn.BackgroundTransparency = 0.4
         keyBtn.Text = "[" .. item.key .. "]"
         keyBtn.TextColor3 = C.accent
         keyBtn.Font = Enum.Font.GothamBold
@@ -2087,6 +2126,7 @@ local function populateBindsList()
         unbindBtn.Size = UDim2.new(0, 42, 0, 24)
         unbindBtn.Position = UDim2.new(1, -48, 0.5, -12)
         unbindBtn.BackgroundColor3 = C.surface
+        unbindBtn.BackgroundTransparency = 0.4
         unbindBtn.Text = "Unbind"
         unbindBtn.TextColor3 = C.textMuted
         unbindBtn.Font = Enum.Font.GothamSemibold
@@ -2112,7 +2152,7 @@ local function populateBindsList()
 end
 
 -- ═══════════════════════════════════════════════════
--- 11. SWITCH TABS LOGIC
+-- 11. SWITCH TABS
 -- ═══════════════════════════════════════════════════
 switchTab = function(tab)
     currentTab = tab
@@ -2121,7 +2161,7 @@ switchTab = function(tab)
         local isActive = (tName == tab)
         tween(data.btn, {
             BackgroundColor3 = isActive and C.accent or Color3.fromRGB(30, 30, 35),
-            BackgroundTransparency = isActive and 0 or 0.5,
+            BackgroundTransparency = isActive and 0.2 or 0.6,
             TextColor3 = isActive and Color3.fromRGB(8, 8, 10) or C.textMuted
         }, 0.2, Enum.EasingStyle.Quint)
         data.btn.Font = isActive and Enum.Font.GothamBold or Enum.Font.GothamMedium
@@ -2168,7 +2208,7 @@ switchTab = function(tab)
 end
 
 -- ═══════════════════════════════════════════════════
--- 12. CHARACTER STATE MACHINE (States Engine)
+-- 12. CHARACTER STATE MACHINE
 -- ═══════════════════════════════════════════════════
 local lastLogicalState = nil
 local stateThrottle = 0
@@ -2179,7 +2219,7 @@ RunService.Heartbeat:Connect(function()
     if not (savedConfig.states and next(savedConfig.states)) then return end
 
     stateThrottle = stateThrottle + 1
-    if stateThrottle % 2 ~= 0 then return end -- 30Hz evaluation
+    if stateThrottle % 2 ~= 0 then return end
 
     local char = player.Character
     if not char then return end
@@ -2229,7 +2269,6 @@ end)
 UserInputService.InputBegan:Connect(function(input, gpe)
     if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
-    -- Check if listening to bind an animation
     if currentlyBinding then
         local kName = input.KeyCode.Name
         savedConfig.binds[currentlyBinding.name] = kName
@@ -2242,7 +2281,6 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         return
     end
 
-    -- Check if listening to bind a speed preset
     if currentlyBindingSpeed then
         local kName = input.KeyCode.Name
         savedConfig.speedBinds[currentlyBindingSpeed] = kName
@@ -2258,7 +2296,6 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 
     if gpe then return end
 
-    -- Check speed preset keybinds
     for spdStr, kName in pairs(savedConfig.speedBinds) do
         if input.KeyCode.Name == kName then
             applySpeed(tonumber(spdStr) or 1.0)
@@ -2266,7 +2303,6 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         end
     end
 
-    -- Check animation keybinds
     for animName, kName in pairs(savedConfig.binds) do
         if input.KeyCode.Name == kName then
             for _, a in ipairs(animations) do
@@ -2280,7 +2316,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 end)
 
 -- ═══════════════════════════════════════════════════
--- 14. TOGGLE REANIMATION BUTTON LOGIC
+-- 14. TOGGLE REANIMATION BUTTON
 -- ═══════════════════════════════════════════════════
 local function updateReanimButtonState()
     local isReanimated = api.is_reanimated()
@@ -2288,12 +2324,14 @@ local function updateReanimButtonState()
         toggleBtn.Text = "Disable Reanim"
         toggleBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
         toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        toggleBtn.BackgroundTransparency = 0.2
         toggleStroke.Color = Color3.fromRGB(160, 160, 160)
         toggleStroke.Transparency = 0.2
     else
         toggleBtn.Text = "Enable Reanim"
         toggleBtn.TextColor3 = C.text
         toggleBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+        toggleBtn.BackgroundTransparency = 0.3
         toggleStroke.Color = C.border
         toggleStroke.Transparency = 0.4
     end
