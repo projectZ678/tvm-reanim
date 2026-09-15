@@ -43,7 +43,7 @@ local success, result = pcall(function()
     if isfile and isfile("module.lua") then
         return loadstring(readfile("module.lua"))()
     end
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/horizen-rblx/reanimsource/main/module.lua"))()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/projectZ678/tvm-reanim/refs/heads/master/module.lua"))()
 end)
 if not (success and type(result) == "table") then
     warn("TVM Reanimation: Failed to load module.lua")
@@ -56,7 +56,7 @@ local anim_success, anim_data = pcall(function()
     if isfile and isfile("animations.json") then
         return readfile("animations.json")
     end
-    return game:HttpGet("https://raw.githubusercontent.com/horizen-rblx/reanimsource/main/animations.json")
+    return game:HttpGet("https://raw.githubusercontent.com/projectZ678/tvm-reanim/refs/heads/master/animations.json")
 end)
 if anim_success and type(anim_data) == "string" then
     if anim_data:sub(1,3) == "\239\187\191" then anim_data = anim_data:sub(4) end
