@@ -7,21 +7,24 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 -- ═══════════════════════════════════════════════════
--- THEME: PURE BLACK & WHITE (no glass, no gradients)
+-- THEME
 -- ═══════════════════════════════════════════════════
 local C = {
-    bg              = Color3.fromRGB(0, 0, 0),
-    bgCard          = Color3.fromRGB(8, 8, 8),
-    surface         = Color3.fromRGB(16, 16, 16),
-    surfaceHover    = Color3.fromRGB(32, 32, 32),
-    input           = Color3.fromRGB(24, 24, 24),
-    accent          = Color3.fromRGB(255, 255, 255),  -- white
-    accentDim       = Color3.fromRGB(180, 180, 180),
-    text            = Color3.fromRGB(240, 240, 240),
-    textMuted       = Color3.fromRGB(160, 160, 160),
-    textDim         = Color3.fromRGB(100, 100, 100),
-    divider         = Color3.fromRGB(40, 40, 40),
-    border          = Color3.fromRGB(60, 60, 60),
+    bg              = Color3.fromRGB(5, 5, 6),
+    bgCard          = Color3.fromRGB(11, 11, 13),
+    surface         = Color3.fromRGB(18, 18, 21),
+    surfaceHover    = Color3.fromRGB(28, 28, 32),
+    surfaceActive   = Color3.fromRGB(38, 38, 44),
+    input           = Color3.fromRGB(23, 23, 27),
+    accent          = Color3.fromRGB(245, 247, 252),
+    accentDim       = Color3.fromRGB(175, 180, 190),
+    text            = Color3.fromRGB(240, 242, 248),
+    textMuted       = Color3.fromRGB(150, 154, 164),
+    textDim         = Color3.fromRGB(95, 98, 108),
+    divider         = Color3.fromRGB(36, 36, 42),
+    border          = Color3.fromRGB(52, 52, 60),
+    borderSoft      = Color3.fromRGB(40, 40, 46),
+    playAccent      = Color3.fromRGB(230, 235, 245),
 }
 
 local function applyCorner(parent, radius)
@@ -30,13 +33,21 @@ local function applyCorner(parent, radius)
     return corner
 end
 
--- Clean up old GUI
+local function applyStroke(parent, color, thickness, transparency)
+    local stroke = Instance.new("UIStroke", parent)
+    stroke.Color = color or C.borderSoft
+    stroke.Thickness = thickness or 1
+    stroke.Transparency = transparency or 0.5
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    return stroke
+end
+
 if CoreGui:FindFirstChild("TVMReanimationRunner") then
     CoreGui.TVMReanimationRunner:Destroy()
 end
 
 -- ═══════════════════════════════════════════════════
--- LOAD MODULE & ANIMATIONS (unchanged)
+-- LOAD MODULE & ANIMATIONS
 -- ═══════════════════════════════════════════════════
 local api
 local success, result = pcall(function()
@@ -50,6 +61,19 @@ if not (success and type(result) == "table") then
     return
 end
 api = result
+
+local function isCustomAnim(a)
+    return a.isCustom or a.category == "Custom"
+end
+
+local function compareAnims(a, b)
+    local aC, bC = isCustomAnim(a), isCustomAnim(b)
+    if aC ~= bC then return not aC end
+    local aCat = a.category or "Reanims"
+    local bCat = b.category or "Reanims"
+    if aCat ~= bCat then return aCat:lower() < bCat:lower() end
+    return a.name:lower() < b.name:lower()
+end
 
 local animations = {}
 local anim_success, anim_data = pcall(function()
@@ -67,7 +91,7 @@ if anim_success and type(anim_data) == "string" then
                 table.insert(animations, { name = item.name, path = item.path, category = item.category or "Reanims" })
             end
         end
-        table.sort(animations, function(a,b) return a.name:lower() < b.name:lower() end)
+        table.sort(animations, compareAnims)
     end
 end
 
@@ -75,7 +99,7 @@ end
 local CONFIG_FILE = "TVMReanimConfig.json"
 local savedConfig = {
     favs = {}, binds = {}, states = {}, speed = 1.0, speedBinds = {},
-    customAnims = {}, hiddenLimbs = {}
+    customAnims = {}, hiddenLimbs = {}, favOrder = {}, height = 1.0
 }
 if isfile and readfile and isfile(CONFIG_FILE) then
     pcall(function()
@@ -84,6 +108,25 @@ if isfile and readfile and isfile(CONFIG_FILE) then
             for k,v in pairs(data) do if savedConfig[k] ~= nil then savedConfig[k] = v end end
         end
     end)
+end
+
+savedConfig.favOrder = savedConfig.favOrder or {}
+do
+    local validOrder = {}
+    local seen = {}
+    for _, name in ipairs(savedConfig.favOrder) do
+        if savedConfig.favs[name] and not seen[name] then
+            table.insert(validOrder, name)
+            seen[name] = true
+        end
+    end
+    local missing = {}
+    for name, _ in pairs(savedConfig.favs) do
+        if not seen[name] then table.insert(missing, name) end
+    end
+    table.sort(missing, function(a, b) return a:lower() < b:lower() end)
+    for _, name in ipairs(missing) do table.insert(validOrder, name) end
+    savedConfig.favOrder = validOrder
 end
 
 _G.hiddenBodyParts = _G.hiddenBodyParts or {}
@@ -97,7 +140,7 @@ if savedConfig.customAnims and #savedConfig.customAnims > 0 then
     for _, ca in ipairs(savedConfig.customAnims) do
         table.insert(animations, { name = ca.name, path = ca.script, category = "Custom", isCustom = true })
     end
-    table.sort(animations, function(a,b) return a.name:lower() < b.name:lower() end)
+    table.sort(animations, compareAnims)
 end
 
 local function saveConfig()
@@ -122,9 +165,10 @@ task.spawn(function()
 end)
 
 -- ═══════════════════════════════════════════════════
--- GUI CONSTRUCTION (solid, no glass)
+-- GUI CONSTRUCTION
 -- ═══════════════════════════════════════════════════
 local currentSpeed = savedConfig.speed or 1.0
+local currentHeight = savedConfig.height or 1.0
 local currentPlayingAnim = nil
 local manualAnimationPlaying = false
 local currentTab = "Reanims"
@@ -134,82 +178,106 @@ gui.Name = "TVMReanimationRunner"
 gui.ResetOnSpawn = false
 gui.Parent = CoreGui
 
-local GUI_WIDTH = 380
-local GUI_HEIGHT = 525
+local GUI_WIDTH = 400
+local GUI_HEIGHT = 560
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, GUI_WIDTH, 0, GUI_HEIGHT)
 mainFrame.Position = UDim2.new(0.5, -GUI_WIDTH/2, 0.5, -GUI_HEIGHT/2)
 mainFrame.BackgroundColor3 = C.bg
-mainFrame.BackgroundTransparency = 0  -- solid
+mainFrame.BackgroundTransparency = 0
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = gui
-applyCorner(mainFrame, 10)
+applyCorner(mainFrame, 12)
+applyStroke(mainFrame, C.border, 1, 0.35)
 
--- Title Bar
+local outerGlow = Instance.new("Frame")
+outerGlow.Size = UDim2.new(1, 4, 1, 4)
+outerGlow.Position = UDim2.new(0, -2, 0, -2)
+outerGlow.BackgroundTransparency = 1
+outerGlow.ZIndex = -1
+outerGlow.Parent = mainFrame
+applyCorner(outerGlow, 14)
+applyStroke(outerGlow, C.accent, 1, 0.92)
+
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 40)
-titleBar.BackgroundColor3 = C.surface
+titleBar.Size = UDim2.new(1, 0, 0, 44)
+titleBar.BackgroundColor3 = C.bgCard
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
-applyCorner(titleBar, 10)
+applyCorner(titleBar, 12)
+
+local titleMask = Instance.new("Frame")
+titleMask.Size = UDim2.new(1, 0, 0, 12)
+titleMask.Position = UDim2.new(0, 0, 1, -12)
+titleMask.BackgroundColor3 = C.bgCard
+titleMask.BorderSizePixel = 0
+titleMask.ZIndex = 1
+titleMask.Parent = titleBar
 
 local titleDivider = Instance.new("Frame")
 titleDivider.Size = UDim2.new(1, 0, 0, 1)
 titleDivider.Position = UDim2.new(0, 0, 1, -1)
 titleDivider.BackgroundColor3 = C.divider
 titleDivider.BorderSizePixel = 0
+titleDivider.ZIndex = 2
 titleDivider.Parent = titleBar
 
--- Window controls
 local macBtns = Instance.new("Frame")
-macBtns.Size = UDim2.new(0, 44, 1, 0)
-macBtns.Position = UDim2.new(0, 10, 0, 0)
+macBtns.Size = UDim2.new(0, 60, 1, 0)
+macBtns.Position = UDim2.new(0, 14, 0, 0)
 macBtns.BackgroundTransparency = 1
+macBtns.ZIndex = 3
 macBtns.Parent = titleBar
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 12, 0, 12)
 closeBtn.Position = UDim2.new(0, 0, 0.5, -6)
-closeBtn.BackgroundColor3 = Color3.fromRGB(220,220,220)
+closeBtn.BackgroundColor3 = Color3.fromRGB(230, 230, 235)
 closeBtn.Text = ""
+closeBtn.AutoButtonColor = false
 closeBtn.Parent = macBtns
 applyCorner(closeBtn, 6)
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
 local minBtn = Instance.new("TextButton")
 minBtn.Size = UDim2.new(0, 12, 0, 12)
-minBtn.Position = UDim2.new(0, 18, 0.5, -6)
-minBtn.BackgroundColor3 = Color3.fromRGB(180,180,180)
+minBtn.Position = UDim2.new(0, 20, 0.5, -6)
+minBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 158)
 minBtn.Text = ""
+minBtn.AutoButtonColor = false
 minBtn.Parent = macBtns
 applyCorner(minBtn, 6)
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 160, 0, 24)
-titleLabel.Position = UDim2.new(0, 48, 0.5, -12)
+titleLabel.Size = UDim2.new(0, 180, 0, 24)
+titleLabel.Position = UDim2.new(0, 56, 0.5, -12)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "TVM Reanimation"
 titleLabel.TextColor3 = C.accent
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 16
+titleLabel.TextSize = 15
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 3
 titleLabel.Parent = titleBar
 
 local toggleBtn = Instance.new("TextButton")
-toggleBtn.Size = UDim2.new(0, 118, 0, 26)
-toggleBtn.Position = UDim2.new(1, -128, 0.5, -13)
+toggleBtn.Size = UDim2.new(0, 124, 0, 26)
+toggleBtn.Position = UDim2.new(1, -138, 0.5, -13)
 toggleBtn.BackgroundColor3 = C.input
 toggleBtn.Text = "Enable Reanim"
 toggleBtn.TextColor3 = C.text
 toggleBtn.Font = Enum.Font.GothamBold
 toggleBtn.TextSize = 10
+toggleBtn.AutoButtonColor = false
+toggleBtn.ZIndex = 3
 toggleBtn.Parent = titleBar
 applyCorner(toggleBtn, 100)
+local toggleStroke = applyStroke(toggleBtn, C.border, 1, 0.6)
 
 local bodyContainer = Instance.new("Frame")
-bodyContainer.Size = UDim2.new(1, 0, 1, -44)
-bodyContainer.Position = UDim2.new(0, 0, 0, 44)
+bodyContainer.Size = UDim2.new(1, 0, 1, -48)
+bodyContainer.Position = UDim2.new(0, 0, 0, 48)
 bodyContainer.BackgroundTransparency = 1
 bodyContainer.Parent = mainFrame
 
@@ -218,10 +286,10 @@ minBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     bodyContainer.Visible = not isMinimized
     titleDivider.Visible = not isMinimized
+    titleMask.Visible = not isMinimized
     mainFrame.Size = UDim2.new(0, GUI_WIDTH, 0, isMinimized and 44 or GUI_HEIGHT)
 end)
 
--- Dragging
 local dragging, dragStart, startPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -242,18 +310,19 @@ titleBar.InputChanged:Connect(function(input)
     end
 end)
 
--- Sub‑Tab Bar
+-- Sub-Tab Bar
 local tabNames = { "Reanims", "Favs", "Custom", "Binds", "States", "Speed", "Limbs" }
 local tabButtons = {}
 local switchTab
 
 local subTabBar = Instance.new("Frame")
 subTabBar.Size = UDim2.new(1, -20, 0, 34)
-subTabBar.Position = UDim2.new(0, 10, 0, 8)
-subTabBar.BackgroundColor3 = C.surface
+subTabBar.Position = UDim2.new(0, 10, 0, 10)
+subTabBar.BackgroundColor3 = C.bgCard
 subTabBar.BorderSizePixel = 0
 subTabBar.Parent = bodyContainer
 applyCorner(subTabBar, 100)
+applyStroke(subTabBar, C.borderSoft, 1, 0.6)
 
 local tabsScroll = Instance.new("ScrollingFrame")
 tabsScroll.Size = UDim2.new(1, -8, 1, -6)
@@ -263,7 +332,7 @@ tabsScroll.BorderSizePixel = 0
 tabsScroll.ScrollBarThickness = 0
 tabsScroll.ScrollingDirection = Enum.ScrollingDirection.X
 pcall(function() tabsScroll.AutomaticCanvasSize = Enum.AutomaticSize.X end)
-tabsScroll.CanvasSize = UDim2.new(0, #tabNames * 56 + 10, 0, 0)
+tabsScroll.CanvasSize = UDim2.new(0, #tabNames * 58 + 10, 0, 0)
 tabsScroll.Parent = subTabBar
 
 local tabsLayout = Instance.new("UIListLayout")
@@ -275,7 +344,7 @@ tabsLayout.Parent = tabsScroll
 
 for i, tName in ipairs(tabNames) do
     local tb = Instance.new("TextButton")
-    tb.Size = UDim2.new(0, 52, 1, 0)
+    tb.Size = UDim2.new(0, 54, 1, 0)
     tb.BackgroundColor3 = (i == 1) and C.accent or C.surface
     tb.BackgroundTransparency = 0
     tb.Text = tName
@@ -291,26 +360,27 @@ for i, tName in ipairs(tabNames) do
     end)
 end
 
--- Now Playing Bar (solid)
+-- Now Playing Bar
 local npBar = Instance.new("Frame")
-npBar.Size = UDim2.new(1, -20, 0, 32)
-npBar.Position = UDim2.new(0, 10, 1, -40)
-npBar.BackgroundColor3 = C.surface
+npBar.Size = UDim2.new(1, -20, 0, 34)
+npBar.Position = UDim2.new(0, 10, 1, -44)
+npBar.BackgroundColor3 = C.bgCard
 npBar.BorderSizePixel = 0
 npBar.Parent = bodyContainer
 applyCorner(npBar, 100)
+applyStroke(npBar, C.borderSoft, 1, 0.6)
 
 local npDot = Instance.new("Frame")
 npDot.Size = UDim2.new(0, 7, 0, 7)
-npDot.Position = UDim2.new(0, 12, 0.5, -3.5)
+npDot.Position = UDim2.new(0, 14, 0.5, -3.5)
 npDot.BackgroundColor3 = C.textMuted
 npDot.BorderSizePixel = 0
 npDot.Parent = npBar
 applyCorner(npDot, 4)
 
 local nowPlayingLabel = Instance.new("TextLabel")
-nowPlayingLabel.Size = UDim2.new(1, -68, 1, 0)
-nowPlayingLabel.Position = UDim2.new(0, 28, 0, 0)
+nowPlayingLabel.Size = UDim2.new(1, -72, 1, 0)
+nowPlayingLabel.Position = UDim2.new(0, 30, 0, 0)
 nowPlayingLabel.BackgroundTransparency = 1
 nowPlayingLabel.Text = "No animation playing"
 nowPlayingLabel.TextColor3 = C.textMuted
@@ -322,11 +392,13 @@ nowPlayingLabel.Parent = npBar
 
 local stopBtn = Instance.new("TextButton")
 stopBtn.Size = UDim2.new(0, 22, 0, 22)
-stopBtn.Position = UDim2.new(1, -28, 0.5, -11)
+stopBtn.Position = UDim2.new(1, -30, 0.5, -11)
 stopBtn.BackgroundColor3 = C.input
 stopBtn.Text = ""
+stopBtn.AutoButtonColor = false
 stopBtn.Parent = npBar
 applyCorner(stopBtn, 11)
+applyStroke(stopBtn, C.border, 1, 0.7)
 
 local stopIcon = Instance.new("Frame")
 stopIcon.Size = UDim2.new(0, 8, 0, 8)
@@ -342,7 +414,7 @@ local function updateNowPlayingUI(animName)
         nowPlayingLabel.Text = "▶  " .. animName:gsub("%.lua$","")
         nowPlayingLabel.TextColor3 = C.text
         npDot.BackgroundColor3 = C.accent
-        stopIcon.BackgroundColor3 = Color3.fromRGB(180,180,180)
+        stopIcon.BackgroundColor3 = C.accentDim
     else
         nowPlayingLabel.Text = "No animation playing"
         nowPlayingLabel.TextColor3 = C.textMuted
@@ -366,8 +438,8 @@ api.on_animation_stop(function() updateNowPlayingUI(nil) end)
 
 -- Content Area
 local contentArea = Instance.new("Frame")
-contentArea.Size = UDim2.new(1, -20, 1, -94)
-contentArea.Position = UDim2.new(0, 10, 0, 48)
+contentArea.Size = UDim2.new(1, -20, 1, -102)
+contentArea.Position = UDim2.new(0, 10, 0, 52)
 contentArea.BackgroundTransparency = 1
 contentArea.Parent = bodyContainer
 
@@ -379,7 +451,7 @@ listPanel.Visible = true
 listPanel.Parent = contentArea
 
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, -96, 0, 30)
+searchBox.Size = UDim2.new(1, -100, 0, 32)
 searchBox.Position = UDim2.new(0, 0, 0, 0)
 searchBox.BackgroundColor3 = C.input
 searchBox.PlaceholderText = "Search animations..."
@@ -392,21 +464,28 @@ searchBox.TextXAlignment = Enum.TextXAlignment.Left
 searchBox.ClearTextOnFocus = false
 searchBox.Parent = listPanel
 applyCorner(searchBox, 100)
+applyStroke(searchBox, C.borderSoft, 1, 0.6)
+
+local searchPad = Instance.new("UIPadding", searchBox)
+searchPad.PaddingLeft = UDim.new(0, 14)
+searchPad.PaddingRight = UDim.new(0, 12)
 
 local addCustomBtn = Instance.new("TextButton")
-addCustomBtn.Size = UDim2.new(0, 90, 0, 30)
-addCustomBtn.Position = UDim2.new(1, -90, 0, 0)
+addCustomBtn.Size = UDim2.new(0, 94, 0, 32)
+addCustomBtn.Position = UDim2.new(1, -94, 0, 0)
 addCustomBtn.BackgroundColor3 = C.surface
 addCustomBtn.Text = "+ Add Custom"
 addCustomBtn.TextColor3 = C.accent
 addCustomBtn.Font = Enum.Font.GothamBold
 addCustomBtn.TextSize = 9.5
+addCustomBtn.AutoButtonColor = false
 addCustomBtn.Parent = listPanel
 applyCorner(addCustomBtn, 100)
+applyStroke(addCustomBtn, C.border, 1, 0.5)
 
 local scrollList = Instance.new("ScrollingFrame")
-scrollList.Size = UDim2.new(1, 0, 1, -38)
-scrollList.Position = UDim2.new(0, 0, 0, 38)
+scrollList.Size = UDim2.new(1, 0, 1, -42)
+scrollList.Position = UDim2.new(0, 0, 0, 42)
 scrollList.BackgroundTransparency = 1
 scrollList.BorderSizePixel = 0
 scrollList.ScrollBarThickness = 3
@@ -416,7 +495,7 @@ scrollList.CanvasSize = UDim2.new(0,0,0,0)
 scrollList.Parent = listPanel
 
 local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 4)
+listLayout.Padding = UDim.new(0, 5)
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Parent = scrollList
 
@@ -424,7 +503,7 @@ local emptyFavsLabel = Instance.new("TextLabel")
 emptyFavsLabel.Size = UDim2.new(1, 0, 0, 60)
 emptyFavsLabel.Position = UDim2.new(0, 0, 0.3, 0)
 emptyFavsLabel.BackgroundTransparency = 1
-emptyFavsLabel.Text = "No favorite animations yet.\nClick the star icon (★) on any animation in the Reanims tab!"
+emptyFavsLabel.Text = "No favorite animations yet.\nClick the star (★) on any animation to add one.\nDrag the ≡ handle in this tab to reorder!"
 emptyFavsLabel.TextColor3 = C.textMuted
 emptyFavsLabel.Font = Enum.Font.GothamMedium
 emptyFavsLabel.TextSize = 11
@@ -461,7 +540,7 @@ bindsLayout.Parent = bindsPanel
 local bindsHeader = Instance.new("TextLabel")
 bindsHeader.Size = UDim2.new(1, 0, 0, 20)
 bindsHeader.BackgroundTransparency = 1
-bindsHeader.Text = "Click key button to rebind  |  Click [X] to unbind"
+bindsHeader.Text = "Click key button to rebind  |  Click [Unbind] to remove"
 bindsHeader.TextColor3 = C.textMuted
 bindsHeader.Font = Enum.Font.GothamMedium
 bindsHeader.TextSize = 10
@@ -478,7 +557,7 @@ emptyBindsLabel.TextSize = 11
 emptyBindsLabel.Visible = false
 emptyBindsLabel.Parent = bindsPanel
 
--- Speed Panel (simplified)
+-- Speed Panel
 local speedPanel = Instance.new("ScrollingFrame")
 speedPanel.Size = UDim2.new(1, 0, 1, 0)
 speedPanel.BackgroundTransparency = 1
@@ -488,21 +567,25 @@ speedPanel.ScrollBarImageColor3 = C.accent
 speedPanel.ScrollBarImageTransparency = 0.6
 speedPanel.Visible = false
 speedPanel.Parent = contentArea
+pcall(function() speedPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
+pcall(function() speedPanel.CanvasSize = UDim2.new(0,0,0,0) end)
 
 local speedListLayout = Instance.new("UIListLayout")
 speedListLayout.Padding = UDim.new(0, 10)
 speedListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 speedListLayout.Parent = speedPanel
 
+-- ── Speed card ──
 local sliderCard = Instance.new("Frame")
-sliderCard.Size = UDim2.new(1, 0, 0, 78)
+sliderCard.Size = UDim2.new(1, 0, 0, 82)
 sliderCard.BackgroundColor3 = C.surface
 sliderCard.Parent = speedPanel
-applyCorner(sliderCard, 8)
+applyCorner(sliderCard, 10)
+applyStroke(sliderCard, C.borderSoft, 1, 0.5)
 
 local scTitle = Instance.new("TextLabel")
 scTitle.Size = UDim2.new(1, -20, 0, 22)
-scTitle.Position = UDim2.new(0, 10, 0, 8)
+scTitle.Position = UDim2.new(0, 12, 0, 8)
 scTitle.BackgroundTransparency = 1
 scTitle.Text = "PLAYBACK SPEED"
 scTitle.TextColor3 = C.textMuted
@@ -512,8 +595,8 @@ scTitle.TextXAlignment = Enum.TextXAlignment.Left
 scTitle.Parent = sliderCard
 
 local sliderTrack = Instance.new("Frame")
-sliderTrack.Size = UDim2.new(1, -130, 0, 6)
-sliderTrack.Position = UDim2.new(0, 10, 0, 46)
+sliderTrack.Size = UDim2.new(1, -140, 0, 6)
+sliderTrack.Position = UDim2.new(0, 12, 0, 50)
 sliderTrack.BackgroundColor3 = C.input
 sliderTrack.BorderSizePixel = 0
 sliderTrack.Parent = sliderCard
@@ -535,26 +618,28 @@ sliderKnob.Parent = sliderFill
 applyCorner(sliderKnob, 7)
 
 local sliderValLabel = Instance.new("TextLabel")
-sliderValLabel.Size = UDim2.new(0, 48, 0, 22)
-sliderValLabel.Position = UDim2.new(1, -114, 0, 38)
+sliderValLabel.Size = UDim2.new(0, 52, 0, 22)
+sliderValLabel.Position = UDim2.new(1, -124, 0, 42)
 sliderValLabel.BackgroundColor3 = C.input
 sliderValLabel.Text = string.format("%.1fx", currentSpeed)
 sliderValLabel.TextColor3 = C.accent
 sliderValLabel.Font = Enum.Font.GothamBold
 sliderValLabel.TextSize = 10
 sliderValLabel.Parent = sliderCard
-applyCorner(sliderValLabel, 4)
+applyCorner(sliderValLabel, 5)
 
 local resetSpeedBtn = Instance.new("TextButton")
-resetSpeedBtn.Size = UDim2.new(0, 54, 0, 22)
-resetSpeedBtn.Position = UDim2.new(1, -60, 0, 38)
+resetSpeedBtn.Size = UDim2.new(0, 58, 0, 22)
+resetSpeedBtn.Position = UDim2.new(1, -64, 0, 42)
 resetSpeedBtn.BackgroundColor3 = C.input
-resetSpeedBtn.Text = "Reset 1.0x"
+resetSpeedBtn.Text = "Reset"
 resetSpeedBtn.TextColor3 = C.text
 resetSpeedBtn.Font = Enum.Font.GothamSemibold
 resetSpeedBtn.TextSize = 9
+resetSpeedBtn.AutoButtonColor = false
 resetSpeedBtn.Parent = sliderCard
-applyCorner(resetSpeedBtn, 4)
+applyCorner(resetSpeedBtn, 5)
+applyStroke(resetSpeedBtn, C.borderSoft, 1, 0.6)
 
 local function applySpeed(val)
     currentSpeed = math.clamp(math.floor(val*10)/10, 0.1, 5.0)
@@ -588,16 +673,17 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Presets (solid)
+-- ── Presets card ──
 local presetCard = Instance.new("Frame")
-presetCard.Size = UDim2.new(1, 0, 0, 110)
+presetCard.Size = UDim2.new(1, 0, 0, 118)
 presetCard.BackgroundColor3 = C.surface
 presetCard.Parent = speedPanel
-applyCorner(presetCard, 8)
+applyCorner(presetCard, 10)
+applyStroke(presetCard, C.borderSoft, 1, 0.5)
 
 local pcTitle = Instance.new("TextLabel")
 pcTitle.Size = UDim2.new(1, -20, 0, 20)
-pcTitle.Position = UDim2.new(0, 10, 0, 8)
+pcTitle.Position = UDim2.new(0, 12, 0, 8)
 pcTitle.BackgroundTransparency = 1
 pcTitle.Text = "SPEED PRESETS & HOTKEYS"
 pcTitle.TextColor3 = C.textMuted
@@ -608,9 +694,9 @@ pcTitle.Parent = presetCard
 
 local pcSubtitle = Instance.new("TextLabel")
 pcSubtitle.Size = UDim2.new(1, -20, 0, 14)
-pcSubtitle.Position = UDim2.new(0, 10, 0, 26)
+pcSubtitle.Position = UDim2.new(0, 12, 0, 26)
 pcSubtitle.BackgroundTransparency = 1
-pcSubtitle.Text = "Click speed button to apply  |  Click [+] to bind key"
+pcSubtitle.Text = "Click speed to apply  |  Click [+] to bind key"
 pcSubtitle.TextColor3 = C.textMuted
 pcSubtitle.Font = Enum.Font.Gotham
 pcSubtitle.TextSize = 9
@@ -619,7 +705,7 @@ pcSubtitle.Parent = presetCard
 
 local speedPresets = {0.5, 1.0, 1.5, 2.0, 3.0}
 local presetRow = Instance.new("Frame")
-presetRow.Size = UDim2.new(1, -20, 0, 52)
+presetRow.Size = UDim2.new(1, -20, 0, 58)
 presetRow.Position = UDim2.new(0, 10, 0, 48)
 presetRow.BackgroundTransparency = 1
 presetRow.Parent = presetCard
@@ -629,41 +715,221 @@ local speedBindButtons = {}
 local pW = 1/#speedPresets
 for i, spd in ipairs(speedPresets) do
     local sBtn = Instance.new("TextButton")
-    sBtn.Size = UDim2.new(pW, -4, 0, 24)
+    sBtn.Size = UDim2.new(pW, -4, 0, 26)
     sBtn.Position = UDim2.new((i-1)*pW, 2, 0, 0)
     sBtn.BackgroundColor3 = C.input
     sBtn.Text = string.format("%.1fx", spd)
     sBtn.TextColor3 = C.text
     sBtn.Font = Enum.Font.GothamBold
     sBtn.TextSize = 11
+    sBtn.AutoButtonColor = false
     sBtn.Parent = presetRow
-    applyCorner(sBtn, 4)
+    applyCorner(sBtn, 5)
+    applyStroke(sBtn, C.borderSoft, 1, 0.6)
     sBtn.MouseButton1Click:Connect(function() applySpeed(spd) end)
 
     local kBtn = Instance.new("TextButton")
-    kBtn.Size = UDim2.new(pW, -4, 0, 20)
-    kBtn.Position = UDim2.new((i-1)*pW, 2, 0, 28)
+    kBtn.Size = UDim2.new(pW, -4, 0, 22)
+    kBtn.Position = UDim2.new((i-1)*pW, 2, 0, 32)
     kBtn.BackgroundColor3 = C.input
     local bound = savedConfig.speedBinds[tostring(spd)]
     kBtn.Text = bound and ("["..bound.."]") or "[+]"
     kBtn.TextColor3 = bound and C.accent or C.textMuted
     kBtn.Font = Enum.Font.GothamSemibold
     kBtn.TextSize = 9
+    kBtn.AutoButtonColor = false
     kBtn.Parent = presetRow
-    applyCorner(kBtn, 4)
+    applyCorner(kBtn, 5)
+    applyStroke(kBtn, C.borderSoft, 1, 0.7)
     speedBindButtons[tostring(spd)] = kBtn
     kBtn.MouseButton1Click:Connect(function()
         if currentlyBindingSpeed == tostring(spd) then
             currentlyBindingSpeed = nil
             local b = savedConfig.speedBinds[tostring(spd)]
             kBtn.Text = b and ("["..b.."]") or "[+]"
+            kBtn.TextColor3 = b and C.accent or C.textMuted
             return
         end
         currentlyBindingSpeed = tostring(spd)
         kBtn.Text = "[?]"
-        kBtn.TextColor3 = Color3.fromRGB(200,200,200)
+        kBtn.TextColor3 = C.accentDim
     end)
 end
+
+-- ── Height card ──
+local heightCard = Instance.new("Frame")
+heightCard.Size = UDim2.new(1, 0, 0, 82)
+heightCard.BackgroundColor3 = C.surface
+heightCard.Parent = speedPanel
+applyCorner(heightCard, 10)
+applyStroke(heightCard, C.borderSoft, 1, 0.5)
+
+local hcTitle = Instance.new("TextLabel")
+hcTitle.Size = UDim2.new(1, -20, 0, 22)
+hcTitle.Position = UDim2.new(0, 12, 0, 8)
+hcTitle.BackgroundTransparency = 1
+hcTitle.Text = "STANDING HEIGHT"
+hcTitle.TextColor3 = C.textMuted
+hcTitle.Font = Enum.Font.GothamBold
+hcTitle.TextSize = 10
+hcTitle.TextXAlignment = Enum.TextXAlignment.Left
+hcTitle.Parent = heightCard
+
+local hcSubtitle = Instance.new("TextLabel")
+hcSubtitle.Size = UDim2.new(1, -20, 0, 14)
+hcSubtitle.Position = UDim2.new(0, 12, 0, 24)
+hcSubtitle.BackgroundTransparency = 1
+hcSubtitle.Text = "Raises/lowers your character without stretching limbs"
+hcSubtitle.TextColor3 = C.textMuted
+hcSubtitle.Font = Enum.Font.Gotham
+hcSubtitle.TextSize = 9
+hcSubtitle.TextXAlignment = Enum.TextXAlignment.Left
+hcSubtitle.Parent = heightCard
+
+local heightTrack = Instance.new("Frame")
+heightTrack.Size = UDim2.new(1, -140, 0, 6)
+heightTrack.Position = UDim2.new(0, 12, 0, 58)
+heightTrack.BackgroundColor3 = C.input
+heightTrack.BorderSizePixel = 0
+heightTrack.Parent = heightCard
+applyCorner(heightTrack, 3)
+
+local heightFill = Instance.new("Frame")
+heightFill.Size = UDim2.new(0.2, 0, 1, 0)
+heightFill.BackgroundColor3 = C.accent
+heightFill.BorderSizePixel = 0
+heightFill.Parent = heightTrack
+applyCorner(heightFill, 3)
+
+local heightKnob = Instance.new("Frame")
+heightKnob.Size = UDim2.new(0, 14, 0, 14)
+heightKnob.Position = UDim2.new(1, -7, 0.5, -7)
+heightKnob.BackgroundColor3 = C.text
+heightKnob.BorderSizePixel = 0
+heightKnob.Parent = heightFill
+applyCorner(heightKnob, 7)
+
+local heightValLabel = Instance.new("TextLabel")
+heightValLabel.Size = UDim2.new(0, 52, 0, 22)
+heightValLabel.Position = UDim2.new(1, -124, 0, 50)
+heightValLabel.BackgroundColor3 = C.input
+heightValLabel.Text = string.format("%.2fx", currentHeight)
+heightValLabel.TextColor3 = C.accent
+heightValLabel.Font = Enum.Font.GothamBold
+heightValLabel.TextSize = 10
+heightValLabel.Parent = heightCard
+applyCorner(heightValLabel, 5)
+
+local resetHeightBtn = Instance.new("TextButton")
+resetHeightBtn.Size = UDim2.new(0, 58, 0, 22)
+resetHeightBtn.Position = UDim2.new(1, -64, 0, 50)
+resetHeightBtn.BackgroundColor3 = C.input
+resetHeightBtn.Text = "Reset"
+resetHeightBtn.TextColor3 = C.text
+resetHeightBtn.Font = Enum.Font.GothamSemibold
+resetHeightBtn.TextSize = 9
+resetHeightBtn.AutoButtonColor = false
+resetHeightBtn.Parent = heightCard
+applyCorner(resetHeightBtn, 5)
+applyStroke(resetHeightBtn, C.borderSoft, 1, 0.6)
+
+-- ─── Height logic ───
+-- We use HipHeight (root part offset) rather than BodyHeightScale, so no
+-- limb mesh is ever scaled. We only apply on discrete events (slider move,
+-- respawn, reanim toggle) — no continuous polling, because repeatedly
+-- writing HipHeight while the reanimation module is rebuilding its clone
+-- was what caused physics-driven limb stretching on toggle.
+local HEIGHT_STUDS_PER_MULT = 2.0
+
+-- Per-humanoid cached base HipHeight (weak keys so garbage collection works)
+local baseHipHeights = setmetatable({}, { __mode = "k" })
+
+local function getBaseHipHeight(hum)
+    if not hum then return nil end
+    local base = baseHipHeights[hum]
+    if base == nil then
+        local ok, val = pcall(function() return hum.HipHeight end)
+        if not ok then return nil end
+        base = val
+        baseHipHeights[hum] = base
+    end
+    return base
+end
+
+local function applyHeightToHumanoid(hum, val)
+    if not hum then return end
+    local base = getBaseHipHeight(hum)
+    if base == nil then return end
+
+    local target
+    if math.abs(val - 1.0) < 0.001 then
+        target = base
+    else
+        target = base + (val - 1.0) * HEIGHT_STUDS_PER_MULT
+        if target < 0 then target = 0 end
+    end
+
+    if math.abs(hum.HipHeight - target) > 0.005 then
+        pcall(function() hum.HipHeight = target end)
+    end
+end
+
+-- Applies the current height to whichever humanoid is currently visible.
+local function applyHeightToVisible()
+    local reanimated = api.is_reanimated and api.is_reanimated()
+    local char = player.Character
+    local clone = api.get_clone and api.get_clone()
+
+    if reanimated and clone then
+        local cloneHum = clone:FindFirstChildOfClass("Humanoid")
+        if cloneHum then
+            applyHeightToHumanoid(cloneHum, currentHeight)
+        end
+    elseif char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            applyHeightToHumanoid(hum, currentHeight)
+        end
+    end
+end
+
+local function applyHeight(val)
+    currentHeight = math.clamp(math.floor(val*100 + 0.5)/100, 0.5, 3.0)
+    savedConfig.height = currentHeight
+    saveConfig()
+    heightValLabel.Text = string.format("%.2fx", currentHeight)
+    local pct = (currentHeight - 0.5) / (3.0 - 0.5)
+    heightFill.Size = UDim2.new(math.clamp(pct,0,1), 0, 1, 0)
+    applyHeightToVisible()
+end
+resetHeightBtn.MouseButton1Click:Connect(function() applyHeight(1.0) end)
+
+local draggingHeightSlider = false
+local function updateHeightSliderFromInput(input)
+    local relX = math.clamp(input.Position.X - heightTrack.AbsolutePosition.X, 0, heightTrack.AbsoluteSize.X)
+    local pct = relX / heightTrack.AbsoluteSize.X
+    applyHeight(0.5 + 2.5 * pct)
+end
+heightCard.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingHeightSlider = true
+        updateHeightSliderFromInput(input)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingHeightSlider = false end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if draggingHeightSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+        updateHeightSliderFromInput(input)
+    end
+end)
+
+-- Reapply height after respawn (fresh Humanoid = fresh base)
+player.CharacterAdded:Connect(function()
+    task.wait(0.35)
+    applyHeightToVisible()
+end)
 
 -- States Panel
 local statesPanel = Instance.new("ScrollingFrame")
@@ -709,48 +975,54 @@ local modalSelectingState = nil
 local modalOverlay = Instance.new("Frame")
 modalOverlay.Size = UDim2.new(1,0,1,0)
 modalOverlay.BackgroundColor3 = C.bg
-modalOverlay.BackgroundTransparency = 0.6
+modalOverlay.BackgroundTransparency = 0.4
 modalOverlay.BorderSizePixel = 0
 modalOverlay.Visible = false
+modalOverlay.ZIndex = 50
 modalOverlay.Parent = mainFrame
 
 local modalCard = Instance.new("Frame")
-modalCard.Size = UDim2.new(0, 330, 0, 400)
-modalCard.Position = UDim2.new(0.5, -165, 0.5, -200)
+modalCard.Size = UDim2.new(0, 340, 0, 420)
+modalCard.Position = UDim2.new(0.5, -170, 0.5, -210)
 modalCard.BackgroundColor3 = C.bgCard
 modalCard.BorderSizePixel = 0
+modalCard.ZIndex = 51
 modalCard.Parent = modalOverlay
-applyCorner(modalCard, 10)
+applyCorner(modalCard, 12)
+applyStroke(modalCard, C.border, 1, 0.4)
 
 local modalTitle = Instance.new("TextLabel")
 modalTitle.Size = UDim2.new(1, -50, 0, 36)
-modalTitle.Position = UDim2.new(0, 14, 0, 6)
+modalTitle.Position = UDim2.new(0, 16, 0, 8)
 modalTitle.BackgroundTransparency = 1
 modalTitle.Text = "Select Animation for State"
 modalTitle.TextColor3 = C.text
 modalTitle.Font = Enum.Font.GothamBold
 modalTitle.TextSize = 12
 modalTitle.TextXAlignment = Enum.TextXAlignment.Left
+modalTitle.ZIndex = 52
 modalTitle.Parent = modalCard
 
 local modalCloseBtn = Instance.new("TextButton")
-modalCloseBtn.Size = UDim2.new(0, 24, 0, 24)
-modalCloseBtn.Position = UDim2.new(1, -34, 0, 10)
+modalCloseBtn.Size = UDim2.new(0, 26, 0, 26)
+modalCloseBtn.Position = UDim2.new(1, -36, 0, 12)
 modalCloseBtn.BackgroundColor3 = C.surface
 modalCloseBtn.Text = "✕"
 modalCloseBtn.TextColor3 = C.textMuted
 modalCloseBtn.Font = Enum.Font.GothamBold
 modalCloseBtn.TextSize = 11
+modalCloseBtn.AutoButtonColor = false
+modalCloseBtn.ZIndex = 52
 modalCloseBtn.Parent = modalCard
-applyCorner(modalCloseBtn, 12)
+applyCorner(modalCloseBtn, 13)
 modalCloseBtn.MouseButton1Click:Connect(function()
     modalOverlay.Visible = false
     modalSelectingState = nil
 end)
 
 local modalSearch = Instance.new("TextBox")
-modalSearch.Size = UDim2.new(1, -28, 0, 30)
-modalSearch.Position = UDim2.new(0, 14, 0, 44)
+modalSearch.Size = UDim2.new(1, -32, 0, 32)
+modalSearch.Position = UDim2.new(0, 16, 0, 48)
 modalSearch.BackgroundColor3 = C.input
 modalSearch.PlaceholderText = "Search animations to assign..."
 modalSearch.PlaceholderColor3 = C.textMuted
@@ -760,18 +1032,24 @@ modalSearch.Font = Enum.Font.GothamMedium
 modalSearch.TextSize = 11
 modalSearch.TextXAlignment = Enum.TextXAlignment.Left
 modalSearch.ClearTextOnFocus = false
+modalSearch.ZIndex = 52
 modalSearch.Parent = modalCard
-applyCorner(modalSearch, 6)
+applyCorner(modalSearch, 100)
+applyStroke(modalSearch, C.borderSoft, 1, 0.6)
+local modalSearchPad = Instance.new("UIPadding", modalSearch)
+modalSearchPad.PaddingLeft = UDim.new(0, 14)
+modalSearchPad.PaddingRight = UDim.new(0, 12)
 
 local modalList = Instance.new("ScrollingFrame")
-modalList.Size = UDim2.new(1, -28, 1, -90)
-modalList.Position = UDim2.new(0, 14, 0, 80)
+modalList.Size = UDim2.new(1, -32, 1, -96)
+modalList.Position = UDim2.new(0, 16, 0, 88)
 modalList.BackgroundTransparency = 1
 modalList.BorderSizePixel = 0
 modalList.ScrollBarThickness = 3
 modalList.ScrollBarImageColor3 = C.accent
 modalList.ScrollBarImageTransparency = 0.6
 modalList.CanvasSize = UDim2.new(0,0,0,0)
+modalList.ZIndex = 52
 modalList.Parent = modalCard
 
 local modalListLayout = Instance.new("UIListLayout")
@@ -787,7 +1065,7 @@ local function populateModalList(filter)
         if term == "" or a.name:lower():find(term,1,true) then
             count = count + 1
             local ab = Instance.new("TextButton")
-            ab.Size = UDim2.new(1, -6, 0, 28)
+            ab.Size = UDim2.new(1, -6, 0, 30)
             ab.BackgroundColor3 = C.surface
             ab.Text = a.name
             ab.TextColor3 = C.text
@@ -795,15 +1073,19 @@ local function populateModalList(filter)
             ab.TextSize = 11
             ab.TextXAlignment = Enum.TextXAlignment.Left
             ab.TextTruncate = Enum.TextTruncate.AtEnd
+            ab.AutoButtonColor = false
+            ab.ZIndex = 53
             ab.Parent = modalList
-            applyCorner(ab, 4)
+            applyCorner(ab, 5)
+            local pad = Instance.new("UIPadding", ab)
+            pad.PaddingLeft = UDim.new(0, 10)
             ab.MouseButton1Click:Connect(function()
                 if modalSelectingState then
                     savedConfig.states[modalSelectingState] = { name = a.name, path = a.path }
                     saveConfig()
                     if stateSelectButtons[modalSelectingState] then
                         stateSelectButtons[modalSelectingState].Text = a.name
-                        stateSelectButtons[modalSelectingState].TextColor3 = Color3.fromRGB(200,200,200)
+                        stateSelectButtons[modalSelectingState].TextColor3 = C.accentDim
                     end
                 end
                 modalOverlay.Visible = false
@@ -811,53 +1093,59 @@ local function populateModalList(filter)
             end)
         end
     end
-    modalList.CanvasSize = UDim2.new(0,0,0, count*32)
+    modalList.CanvasSize = UDim2.new(0,0,0, count*34)
 end
 modalSearch:GetPropertyChangedSignal("Text"):Connect(function() populateModalList(modalSearch.Text) end)
 
--- Add Custom Modal (solid)
+-- Add Custom Modal
 local addCustomModal = Instance.new("Frame")
 addCustomModal.Size = UDim2.new(1,0,1,0)
 addCustomModal.BackgroundColor3 = C.bg
-addCustomModal.BackgroundTransparency = 0.6
+addCustomModal.BackgroundTransparency = 0.4
 addCustomModal.BorderSizePixel = 0
 addCustomModal.Visible = false
+addCustomModal.ZIndex = 50
 addCustomModal.Parent = mainFrame
 
 local addCard = Instance.new("Frame")
-addCard.Size = UDim2.new(0, 330, 0, 380)
-addCard.Position = UDim2.new(0.5, -165, 0.5, -190)
+addCard.Size = UDim2.new(0, 340, 0, 400)
+addCard.Position = UDim2.new(0.5, -170, 0.5, -200)
 addCard.BackgroundColor3 = C.bgCard
 addCard.BorderSizePixel = 0
+addCard.ZIndex = 51
 addCard.Parent = addCustomModal
-applyCorner(addCard, 10)
+applyCorner(addCard, 12)
+applyStroke(addCard, C.border, 1, 0.4)
 
 local addTitle = Instance.new("TextLabel")
 addTitle.Size = UDim2.new(1, -50, 0, 36)
-addTitle.Position = UDim2.new(0, 14, 0, 6)
+addTitle.Position = UDim2.new(0, 16, 0, 8)
 addTitle.BackgroundTransparency = 1
 addTitle.Text = "Add Custom Animation"
 addTitle.TextColor3 = C.text
 addTitle.Font = Enum.Font.GothamBold
 addTitle.TextSize = 12
 addTitle.TextXAlignment = Enum.TextXAlignment.Left
+addTitle.ZIndex = 52
 addTitle.Parent = addCard
 
 local addCloseBtn = Instance.new("TextButton")
-addCloseBtn.Size = UDim2.new(0, 24, 0, 24)
-addCloseBtn.Position = UDim2.new(1, -34, 0, 10)
+addCloseBtn.Size = UDim2.new(0, 26, 0, 26)
+addCloseBtn.Position = UDim2.new(1, -36, 0, 12)
 addCloseBtn.BackgroundColor3 = C.surface
 addCloseBtn.Text = "✕"
 addCloseBtn.TextColor3 = C.textMuted
 addCloseBtn.Font = Enum.Font.GothamBold
 addCloseBtn.TextSize = 11
+addCloseBtn.AutoButtonColor = false
+addCloseBtn.ZIndex = 52
 addCloseBtn.Parent = addCard
-applyCorner(addCloseBtn, 12)
+applyCorner(addCloseBtn, 13)
 addCloseBtn.MouseButton1Click:Connect(function() addCustomModal.Visible = false end)
 
 local addNameBox = Instance.new("TextBox")
-addNameBox.Size = UDim2.new(1, -28, 0, 28)
-addNameBox.Position = UDim2.new(0, 14, 0, 44)
+addNameBox.Size = UDim2.new(1, -32, 0, 30)
+addNameBox.Position = UDim2.new(0, 16, 0, 48)
 addNameBox.BackgroundColor3 = C.input
 addNameBox.PlaceholderText = "Animation Name (optional)"
 addNameBox.PlaceholderColor3 = C.textMuted
@@ -867,12 +1155,17 @@ addNameBox.Font = Enum.Font.GothamMedium
 addNameBox.TextSize = 11
 addNameBox.TextXAlignment = Enum.TextXAlignment.Left
 addNameBox.ClearTextOnFocus = false
+addNameBox.ZIndex = 52
 addNameBox.Parent = addCard
 applyCorner(addNameBox, 6)
+applyStroke(addNameBox, C.borderSoft, 1, 0.6)
+local addNamePad = Instance.new("UIPadding", addNameBox)
+addNamePad.PaddingLeft = UDim.new(0, 10)
+addNamePad.PaddingRight = UDim.new(0, 10)
 
 local addDataBox = Instance.new("TextBox")
-addDataBox.Size = UDim2.new(1, -28, 0, 210)
-addDataBox.Position = UDim2.new(0, 14, 0, 80)
+addDataBox.Size = UDim2.new(1, -32, 0, 220)
+addDataBox.Position = UDim2.new(0, 16, 0, 86)
 addDataBox.BackgroundColor3 = C.input
 addDataBox.PlaceholderText = "Paste keyframe script or table here...\n(Or press Ctrl+V to paste from clipboard)"
 addDataBox.PlaceholderColor3 = C.textMuted
@@ -886,30 +1179,40 @@ addDataBox.TextWrapped = true
 addDataBox.TextXAlignment = Enum.TextXAlignment.Left
 addDataBox.TextYAlignment = Enum.TextYAlignment.Top
 addDataBox.ClipsDescendants = true
+addDataBox.ZIndex = 52
 addDataBox.Parent = addCard
 applyCorner(addDataBox, 6)
+applyStroke(addDataBox, C.borderSoft, 1, 0.6)
+local addDataPad = Instance.new("UIPadding", addDataBox)
+addDataPad.PaddingLeft = UDim.new(0, 8)
+addDataPad.PaddingRight = UDim.new(0, 8)
+addDataPad.PaddingTop = UDim.new(0, 6)
 
 local addStatus = Instance.new("TextLabel")
-addStatus.Size = UDim2.new(1, -28, 0, 20)
-addStatus.Position = UDim2.new(0, 14, 0, 298)
+addStatus.Size = UDim2.new(1, -32, 0, 20)
+addStatus.Position = UDim2.new(0, 16, 0, 314)
 addStatus.BackgroundTransparency = 1
 addStatus.Text = "Paste keyframe data or script table above."
 addStatus.TextColor3 = C.textMuted
 addStatus.Font = Enum.Font.Gotham
 addStatus.TextSize = 10
 addStatus.TextXAlignment = Enum.TextXAlignment.Left
+addStatus.ZIndex = 52
 addStatus.Parent = addCard
 
 local addSubmitBtn = Instance.new("TextButton")
-addSubmitBtn.Size = UDim2.new(1, -28, 0, 32)
-addSubmitBtn.Position = UDim2.new(0, 14, 1, -44)
+addSubmitBtn.Size = UDim2.new(1, -32, 0, 34)
+addSubmitBtn.Position = UDim2.new(0, 16, 1, -48)
 addSubmitBtn.BackgroundColor3 = C.surface
 addSubmitBtn.Text = "+ Add Animation"
 addSubmitBtn.TextColor3 = C.accent
 addSubmitBtn.Font = Enum.Font.GothamBold
 addSubmitBtn.TextSize = 11
+addSubmitBtn.AutoButtonColor = false
+addSubmitBtn.ZIndex = 52
 addSubmitBtn.Parent = addCard
 applyCorner(addSubmitBtn, 6)
+applyStroke(addSubmitBtn, C.border, 1, 0.5)
 
 local isDataBoxFocused = false
 addDataBox.Focused:Connect(function() isDataBoxFocused = true end)
@@ -928,25 +1231,31 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
+local populateList
+local markListDirty
+
 addSubmitBtn.MouseButton1Click:Connect(function()
     local raw = addDataBox.Text:gsub("^%s+",""):gsub("%s+$","")
     if raw == "" then
         addStatus.Text = "Please paste keyframe script or table first!"
-        addStatus.TextColor3 = Color3.fromRGB(180,180,180)
+        addStatus.TextColor3 = C.accentDim
         return
     end
     if not raw:find("{",1,true) then
         addStatus.Text = "Invalid data: doesn't look like keyframes table or script."
-        addStatus.TextColor3 = Color3.fromRGB(180,180,180)
+        addStatus.TextColor3 = C.accentDim
         return
     end
     local finalName = (addNameBox.Text:match("^%s*(.-)%s*$") or "") ~= "" and addNameBox.Text or ("Custom_"..(#savedConfig.customAnims+1))
     table.insert(savedConfig.customAnims, { name = finalName, script = raw })
     saveConfig()
     table.insert(animations, { name = finalName, path = raw, category = "Custom", isCustom = true })
-    table.sort(animations, function(a,b) return a.name:lower() < b.name:lower() end)
+    table.sort(animations, compareAnims)
     addCustomModal.Visible = false
-    populateList()
+    addDataBox.Text = ""
+    addNameBox.Text = ""
+    if markListDirty then markListDirty() end
+    if populateList then populateList() end
 end)
 
 addCustomBtn.MouseButton1Click:Connect(function()
@@ -957,14 +1266,15 @@ end)
 -- States rows
 for _, st in ipairs(stateTypes) do
     local sRow = Instance.new("Frame")
-    sRow.Size = UDim2.new(1, 0, 0, 42)
+    sRow.Size = UDim2.new(1, 0, 0, 44)
     sRow.BackgroundColor3 = C.surface
     sRow.Parent = statesPanel
-    applyCorner(sRow, 6)
+    applyCorner(sRow, 8)
+    applyStroke(sRow, C.borderSoft, 1, 0.6)
 
     local stLabel = Instance.new("TextLabel")
     stLabel.Size = UDim2.new(0, 70, 1, 0)
-    stLabel.Position = UDim2.new(0, 12, 0, 0)
+    stLabel.Position = UDim2.new(0, 14, 0, 0)
     stLabel.BackgroundTransparency = 1
     stLabel.Text = st
     stLabel.TextColor3 = C.text
@@ -975,17 +1285,20 @@ for _, st in ipairs(stateTypes) do
 
     local currentAssignment = savedConfig.states[st]
     local sBtn = Instance.new("TextButton")
-    sBtn.Size = UDim2.new(1, -150, 0, 26)
-    sBtn.Position = UDim2.new(0, 84, 0.5, -13)
+    sBtn.Size = UDim2.new(1, -160, 0, 28)
+    sBtn.Position = UDim2.new(0, 84, 0.5, -14)
     sBtn.BackgroundColor3 = C.input
     sBtn.Text = currentAssignment and currentAssignment.name or "None"
-    sBtn.TextColor3 = currentAssignment and Color3.fromRGB(200,200,200) or C.textMuted
+    sBtn.TextColor3 = currentAssignment and C.accentDim or C.textMuted
     sBtn.Font = Enum.Font.GothamMedium
     sBtn.TextSize = 11
     sBtn.TextXAlignment = Enum.TextXAlignment.Left
     sBtn.TextTruncate = Enum.TextTruncate.AtEnd
+    sBtn.AutoButtonColor = false
     sBtn.Parent = sRow
-    applyCorner(sBtn, 4)
+    applyCorner(sBtn, 5)
+    local padS = Instance.new("UIPadding", sBtn)
+    padS.PaddingLeft = UDim.new(0, 10)
     stateSelectButtons[st] = sBtn
 
     sBtn.MouseButton1Click:Connect(function()
@@ -997,15 +1310,16 @@ for _, st in ipairs(stateTypes) do
     end)
 
     local clearBtn = Instance.new("TextButton")
-    clearBtn.Size = UDim2.new(0, 52, 0, 26)
-    clearBtn.Position = UDim2.new(1, -60, 0.5, -13)
+    clearBtn.Size = UDim2.new(0, 56, 0, 28)
+    clearBtn.Position = UDim2.new(1, -66, 0.5, -14)
     clearBtn.BackgroundColor3 = C.input
     clearBtn.Text = "Clear"
     clearBtn.TextColor3 = C.textMuted
     clearBtn.Font = Enum.Font.GothamSemibold
     clearBtn.TextSize = 10
+    clearBtn.AutoButtonColor = false
     clearBtn.Parent = sRow
-    applyCorner(clearBtn, 4)
+    applyCorner(clearBtn, 5)
     clearBtn.MouseButton1Click:Connect(function()
         savedConfig.states[st] = nil
         saveConfig()
@@ -1014,7 +1328,7 @@ for _, st in ipairs(stateTypes) do
     end)
 end
 
--- Limbs Panel (solid, optimized)
+-- Limbs Panel
 local limbsPanel = Instance.new("ScrollingFrame")
 limbsPanel.Size = UDim2.new(1, 0, 1, 0)
 limbsPanel.BackgroundTransparency = 1
@@ -1055,6 +1369,7 @@ local function createToggleSwitch(parent, posX, posY)
     track.BackgroundColor3 = C.input
     track.BorderSizePixel = 0
     applyCorner(track, 100)
+    applyStroke(track, C.borderSoft, 1, 0.6)
     local knob = Instance.new("Frame", track)
     knob.Size = UDim2.new(0, 16, 0, 16)
     knob.Position = UDim2.new(0, 3, 0.5, -8)
@@ -1071,12 +1386,13 @@ local function updateToggleVisual(track, knob, isOn)
 end
 
 local masterCard = Instance.new("Frame")
-masterCard.Size = UDim2.new(1, 0, 0, 46)
+masterCard.Size = UDim2.new(1, 0, 0, 48)
 masterCard.BackgroundColor3 = C.surface
 masterCard.BorderSizePixel = 0
 masterCard.LayoutOrder = 2
 masterCard.Parent = limbsPanel
 applyCorner(masterCard, 10)
+applyStroke(masterCard, C.borderSoft, 1, 0.5)
 
 local masterInfoFrame = Instance.new("Frame")
 masterInfoFrame.Size = UDim2.new(1, -125, 1, 0)
@@ -1114,7 +1430,7 @@ masterStatusLbl.Font = Enum.Font.GothamBold
 masterStatusLbl.TextSize = 9
 masterStatusLbl.TextXAlignment = Enum.TextXAlignment.Right
 masterStatusLbl.Text = "ALL SHOWN"
-masterStatusLbl.TextColor3 = Color3.fromRGB(200,200,200)
+masterStatusLbl.TextColor3 = C.accentDim
 masterStatusLbl.Parent = masterCard
 
 local masterTrack, masterKnob = createToggleSwitch(masterCard, -54, -11)
@@ -1148,16 +1464,16 @@ local function updateMasterToggleVisual()
     end
     if hiddenCount == 0 then
         masterStatusLbl.Text = "ALL SHOWN"
-        masterStatusLbl.TextColor3 = Color3.fromRGB(200,200,200)
+        masterStatusLbl.TextColor3 = C.accentDim
         updateToggleVisual(masterTrack, masterKnob, true)
     elseif hiddenCount == #limbDefinitions then
         masterStatusLbl.Text = "ALL HIDDEN"
-        masterStatusLbl.TextColor3 = Color3.fromRGB(120,120,120)
+        masterStatusLbl.TextColor3 = C.textDim
         updateToggleVisual(masterTrack, masterKnob, false)
     else
         masterStatusLbl.Text = "CUSTOM"
-        masterStatusLbl.TextColor3 = Color3.fromRGB(180,180,180)
-        masterTrack.BackgroundColor3 = Color3.fromRGB(30,30,30)
+        masterStatusLbl.TextColor3 = C.accentDim
+        masterTrack.BackgroundColor3 = C.surfaceActive
         masterKnob.BackgroundColor3 = Color3.fromRGB(140,140,140)
         masterKnob.Position = UDim2.new(0, 3, 0.5, -8)
     end
@@ -1178,7 +1494,7 @@ local function setLimbHidden(limbDef, hidden)
     if rowData then
         local isVisible = not hidden
         rowData.statusLbl.Text = isVisible and "VISIBLE" or "HIDDEN"
-        rowData.statusLbl.TextColor3 = isVisible and Color3.fromRGB(200,200,200) or Color3.fromRGB(100,100,100)
+        rowData.statusLbl.TextColor3 = isVisible and C.accentDim or C.textDim
         updateToggleVisual(rowData.track, rowData.knob, isVisible)
     end
     updateMasterToggleVisual()
@@ -1202,12 +1518,13 @@ end)
 
 for idx, ldef in ipairs(limbDefinitions) do
     local lRow = Instance.new("Frame")
-    lRow.Size = UDim2.new(1, 0, 0, 44)
+    lRow.Size = UDim2.new(1, 0, 0, 46)
     lRow.BackgroundColor3 = C.surface
     lRow.BorderSizePixel = 0
     lRow.LayoutOrder = 3 + idx
     lRow.Parent = limbsPanel
     applyCorner(lRow, 10)
+    applyStroke(lRow, C.borderSoft, 1, 0.6)
 
     local infoFrame = Instance.new("Frame")
     infoFrame.Size = UDim2.new(1, -125, 1, 0)
@@ -1253,7 +1570,7 @@ for idx, ldef in ipairs(limbDefinitions) do
     statusLbl.TextSize = 9
     statusLbl.TextXAlignment = Enum.TextXAlignment.Right
     statusLbl.Text = isCurrentlyHidden and "HIDDEN" or "VISIBLE"
-    statusLbl.TextColor3 = isCurrentlyHidden and Color3.fromRGB(100,100,100) or Color3.fromRGB(200,200,200)
+    statusLbl.TextColor3 = isCurrentlyHidden and C.textDim or C.accentDim
     statusLbl.Parent = lRow
 
     local track, knob = createToggleSwitch(lRow, -54, -11)
@@ -1290,16 +1607,15 @@ local function updateLimbsUI()
         if rowData then
             local isVisible = not isHidden
             rowData.statusLbl.Text = isVisible and "VISIBLE" or "HIDDEN"
-            rowData.statusLbl.TextColor3 = isVisible and Color3.fromRGB(200,200,200) or Color3.fromRGB(100,100,100)
+            rowData.statusLbl.TextColor3 = isVisible and C.accentDim or C.textDim
             updateToggleVisual(rowData.track, rowData.knob, isVisible)
         end
     end
     updateMasterToggleVisual()
 end
 
-limbsPanel.CanvasSize = UDim2.new(0,0,0, #limbDefinitions * 56 + 80)
+limbsPanel.CanvasSize = UDim2.new(0,0,0, #limbDefinitions * 58 + 80)
 
--- RenderStepped for hiding limbs
 RunService.RenderStepped:Connect(function()
     local clone = api and api.get_clone and api.get_clone()
     if not clone then return end
@@ -1331,12 +1647,20 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ═══════════════════════════════════════════════════
--- LIST ENGINE (optimized with batching)
+-- LIST ENGINE
 -- ═══════════════════════════════════════════════════
-local ROW_HEIGHT = 38
+local ROW_HEIGHT = 40
 local currentlyBinding = nil
 local activeOutlineAnim = nil
-local animButtons = {}
+
+local dragState = nil
+
+local rowPool = {}
+local activeRows = {}
+
+local displayCache = nil
+local displayCacheKey = nil
+local listDirty = true
 
 local function playSelectedAnimation(anim)
     if not (api and api.is_reanimated and api.is_reanimated()) then
@@ -1348,178 +1672,404 @@ local function playSelectedAnimation(anim)
         api.stop_animation()
         activeOutlineAnim = nil
         updateNowPlayingUI(nil)
+        markListDirty()
         return
     end
     manualAnimationPlaying = true
     activeOutlineAnim = anim.name
     api.play_animation(anim.path, currentSpeed)
     updateNowPlayingUI(anim.name)
+    markListDirty()
 end
 
-local ROWS_PER_YIELD = 15
-function populateList()
-    for _, child in ipairs(scrollList:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
+local function removeFromFavOrder(name)
+    for i, n in ipairs(savedConfig.favOrder) do
+        if n == name then table.remove(savedConfig.favOrder, i); return end
     end
-    table.clear(animButtons)
+end
 
+local function addToFavOrder(name)
+    removeFromFavOrder(name)
+    table.insert(savedConfig.favOrder, name)
+end
+
+local function buildRow()
+    local row = {}
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -6, 0, ROW_HEIGHT)
+    frame.BackgroundColor3 = C.surface
+    frame.BorderSizePixel = 0
+    frame.Parent = scrollList
+    applyCorner(frame, 8)
+    local stroke = applyStroke(frame, C.borderSoft, 1, 0.55)
+    row.Frame = frame
+    row.Stroke = stroke
+
+    local grip = Instance.new("TextButton")
+    grip.Size = UDim2.new(0, 20, 1, 0)
+    grip.Position = UDim2.new(0, 0, 0, 0)
+    grip.BackgroundTransparency = 1
+    grip.Text = ""
+    grip.AutoButtonColor = false
+    grip.Visible = false
+    grip.Parent = frame
+    row.Grip = grip
+
+    for di = 1, 3 do
+        local dot = Instance.new("Frame")
+        dot.Size = UDim2.new(0, 3, 0, 3)
+        dot.Position = UDim2.new(0.5, -1.5, 0.5, (di - 2) * 7 - 1.5)
+        dot.BackgroundColor3 = C.textDim
+        dot.BorderSizePixel = 0
+        dot.Parent = grip
+        applyCorner(dot, 2)
+    end
+
+    local accentBar = Instance.new("Frame")
+    accentBar.Size = UDim2.new(0, 3, 0.6, 0)
+    accentBar.Position = UDim2.new(0, 0, 0.2, 0)
+    accentBar.BackgroundColor3 = C.accent
+    accentBar.BorderSizePixel = 0
+    accentBar.Visible = false
+    accentBar.Parent = frame
+    applyCorner(accentBar, 2)
+    row.AccentBar = accentBar
+
+    local star = Instance.new("TextButton")
+    star.Size = UDim2.new(0, 26, 1, 0)
+    star.Position = UDim2.new(0, 5, 0, 0)
+    star.BackgroundTransparency = 1
+    star.Text = "☆"
+    star.TextColor3 = C.textMuted
+    star.Font = Enum.Font.GothamBold
+    star.TextSize = 15
+    star.AutoButtonColor = false
+    star.Parent = frame
+    row.Star = star
+
+    local play = Instance.new("TextButton")
+    play.Size = UDim2.new(1, -108, 1, 0)
+    play.Position = UDim2.new(0, 36, 0, 0)
+    play.BackgroundTransparency = 1
+    play.Text = ""
+    play.TextColor3 = C.text
+    play.Font = Enum.Font.GothamMedium
+    play.TextSize = 11
+    play.TextXAlignment = Enum.TextXAlignment.Left
+    play.TextTruncate = Enum.TextTruncate.AtEnd
+    play.AutoButtonColor = false
+    play.RichText = true
+    play.Parent = frame
+    row.Play = play
+
+    local key = Instance.new("TextButton")
+    key.Size = UDim2.new(0, 40, 0, 22)
+    key.Position = UDim2.new(1, -46, 0.5, -11)
+    key.BackgroundColor3 = C.input
+    key.Text = "[+]"
+    key.TextColor3 = C.textMuted
+    key.Font = Enum.Font.GothamBold
+    key.TextSize = 10
+    key.AutoButtonColor = false
+    key.Parent = frame
+    applyCorner(key, 5)
+    applyStroke(key, C.borderSoft, 1, 0.6)
+    row.Key = key
+
+    local del = Instance.new("TextButton")
+    del.Size = UDim2.new(0, 24, 0, 22)
+    del.Position = UDim2.new(1, -28, 0.5, -11)
+    del.BackgroundColor3 = C.input
+    del.Text = "✕"
+    del.TextColor3 = C.textMuted
+    del.Font = Enum.Font.GothamBold
+    del.TextSize = 10
+    del.AutoButtonColor = false
+    del.Parent = frame
+    applyCorner(del, 5)
+    applyStroke(del, C.borderSoft, 1, 0.6)
+    row.Del = del
+
+    frame.MouseEnter:Connect(function()
+        if row.anim and activeOutlineAnim ~= row.anim.name
+            and not (dragState and dragState.animName == row.anim.name) then
+            frame.BackgroundColor3 = C.surfaceHover
+        end
+    end)
+    frame.MouseLeave:Connect(function()
+        if row.anim and activeOutlineAnim ~= row.anim.name
+            and not (dragState and dragState.animName == row.anim.name) then
+            frame.BackgroundColor3 = C.surface
+        end
+    end)
+
+    star.MouseButton1Click:Connect(function()
+        local anim = row.anim
+        if not anim then return end
+        if savedConfig.favs[anim.name] then
+            savedConfig.favs[anim.name] = nil
+            removeFromFavOrder(anim.name)
+        else
+            savedConfig.favs[anim.name] = true
+            addToFavOrder(anim.name)
+        end
+        saveConfig()
+        local isFav = savedConfig.favs[anim.name]
+        star.Text = isFav and "★" or "☆"
+        star.TextColor3 = isFav and C.accent or C.textMuted
+        if currentTab == "Favs" then
+            markListDirty()
+            populateList()
+        end
+    end)
+
+    play.MouseButton1Click:Connect(function()
+        local anim = row.anim
+        if not anim then return end
+        playSelectedAnimation(anim)
+        populateList()
+    end)
+
+    key.MouseButton1Click:Connect(function()
+        local anim = row.anim
+        if not anim then return end
+        if currentlyBinding and currentlyBinding.name == anim.name then
+            currentlyBinding = nil
+            local b = savedConfig.binds[anim.name]
+            key.Text = b and ("["..b.."]") or "[+]"
+            key.TextColor3 = b and C.accent or C.textMuted
+            return
+        end
+        currentlyBinding = { name = anim.name, btn = key }
+        key.Text = "[?]"
+        key.TextColor3 = C.accentDim
+    end)
+
+    del.MouseButton1Click:Connect(function()
+        local anim = row.anim
+        if not anim then return end
+        for i, a in ipairs(animations) do
+            if a.name == anim.name then table.remove(animations, i); break end
+        end
+        for i, ca in ipairs(savedConfig.customAnims) do
+            if ca.name == anim.name then table.remove(savedConfig.customAnims, i); break end
+        end
+        savedConfig.favs[anim.name] = nil
+        savedConfig.binds[anim.name] = nil
+        removeFromFavOrder(anim.name)
+        saveConfig()
+        markListDirty()
+        populateList()
+    end)
+
+    grip.MouseButton1Down:Connect(function()
+        if currentTab ~= "Favs" then return end
+        local anim = row.anim
+        if not anim then return end
+        local idx = table.find(savedConfig.favOrder, anim.name)
+        if not idx then return end
+        dragState = { animName = anim.name, index = idx }
+        frame.BackgroundColor3 = C.surfaceActive
+        stroke.Color = C.accent
+        stroke.Transparency = 0.15
+    end)
+
+    return row
+end
+
+local function acquireRow()
+    local r = table.remove(rowPool)
+    if r then
+        r.Frame.Visible = true
+        return r
+    end
+    return buildRow()
+end
+
+local function releaseRow(r)
+    r.Frame.Visible = false
+    r.anim = nil
+    table.insert(rowPool, r)
+end
+
+markListDirty = function() listDirty = true end
+
+local function computeDisplayList()
+    local key = currentTab .. "|" .. searchBox.Text .. "|" .. tostring(#animations) .. "|" .. tostring(#savedConfig.favOrder)
+    if not listDirty and displayCacheKey == key and displayCache then
+        return displayCache
+    end
     local term = searchBox.Text:lower()
-    local displayList = {}
+    local out = {}
     for _, a in ipairs(animations) do
-        local isCustom = a.isCustom or (a.category == "Custom")
+        local custom = isCustomAnim(a)
         if currentTab == "Favs" then
             if savedConfig.favs[a.name] and (term == "" or a.name:lower():find(term,1,true)) then
-                table.insert(displayList, a)
+                table.insert(out, a)
             end
         elseif currentTab == "Custom" then
-            if isCustom and (term == "" or a.name:lower():find(term,1,true)) then
-                table.insert(displayList, a)
+            if custom and (term == "" or a.name:lower():find(term,1,true)) then
+                table.insert(out, a)
             end
         else
             if term == "" or a.name:lower():find(term,1,true) then
-                table.insert(displayList, a)
+                table.insert(out, a)
             end
         end
     end
 
     if currentTab == "Favs" then
-        emptyFavsLabel.Visible = (#displayList == 0)
+        local posMap = {}
+        for idx, name in ipairs(savedConfig.favOrder) do
+            posMap[name] = idx
+        end
+        table.sort(out, function(a, b)
+            local pa = posMap[a.name] or math.huge
+            local pb = posMap[b.name] or math.huge
+            if pa ~= pb then return pa < pb end
+            return a.name:lower() < b.name:lower()
+        end)
+    else
+        table.sort(out, function(a, b) return a.name:lower() < b.name:lower() end)
+    end
+
+    displayCache = out
+    displayCacheKey = key
+    listDirty = false
+    return out
+end
+
+function populateList()
+    local displayList = computeDisplayList()
+    local total = #displayList
+    local isFavsTab = (currentTab == "Favs")
+
+    for i = #activeRows, 1, -1 do
+        releaseRow(activeRows[i])
+        activeRows[i] = nil
+    end
+
+    if currentTab == "Favs" then
+        emptyFavsLabel.Visible = (total == 0)
         emptyCustomLabel.Visible = false
     elseif currentTab == "Custom" then
         emptyFavsLabel.Visible = false
-        emptyCustomLabel.Visible = (#displayList == 0)
+        emptyCustomLabel.Visible = (total == 0)
     else
         emptyFavsLabel.Visible = false
         emptyCustomLabel.Visible = false
     end
 
-    local count = 0
     for i, anim in ipairs(displayList) do
-        count = count + 1
-        local row = Instance.new("Frame")
-        row.Size = UDim2.new(1, -6, 0, ROW_HEIGHT)
-        row.BackgroundColor3 = (activeOutlineAnim == anim.name) and C.surfaceHover or C.surface
-        row.BorderSizePixel = 0
-        row.LayoutOrder = i
-        row.Parent = scrollList
-        applyCorner(row, 6)
+        local row = acquireRow()
+        row.anim = anim
+        row.Frame.LayoutOrder = i
 
-        -- Star
+        if isFavsTab then
+            row.Grip.Visible = true
+            row.Star.Position = UDim2.new(0, 22, 0, 0)
+            row.Play.Position = UDim2.new(0, 50, 0, 0)
+        else
+            row.Grip.Visible = false
+            row.Star.Position = UDim2.new(0, 5, 0, 0)
+            row.Play.Position = UDim2.new(0, 36, 0, 0)
+        end
+
+        local isPlaying = (activeOutlineAnim == anim.name)
+        local isDragged = dragState and dragState.animName == anim.name
+
+        if isDragged then
+            row.Frame.BackgroundColor3 = C.surfaceActive
+            row.Stroke.Color = C.accent
+            row.Stroke.Transparency = 0.15
+        elseif isPlaying then
+            row.Frame.BackgroundColor3 = C.surfaceActive
+            row.Stroke.Color = C.accent
+            row.Stroke.Transparency = 0.2
+        else
+            row.Frame.BackgroundColor3 = C.surface
+            row.Stroke.Color = C.borderSoft
+            row.Stroke.Transparency = 0.55
+        end
+        row.AccentBar.Visible = isPlaying
+
         local isFav = savedConfig.favs[anim.name]
-        local starBtn = Instance.new("TextButton")
-        starBtn.Size = UDim2.new(0, 24, 1, 0)
-        starBtn.Position = UDim2.new(0, 4, 0, 0)
-        starBtn.BackgroundTransparency = 1
-        starBtn.Text = isFav and "★" or "☆"
-        starBtn.TextColor3 = isFav and C.accent or C.textMuted
-        starBtn.Font = Enum.Font.GothamBold
-        starBtn.TextSize = 14
-        starBtn.Parent = row
-        starBtn.MouseButton1Click:Connect(function()
-            if savedConfig.favs[anim.name] then
-                savedConfig.favs[anim.name] = nil
-                starBtn.Text = "☆"
-                starBtn.TextColor3 = C.textMuted
-            else
-                savedConfig.favs[anim.name] = true
-                starBtn.Text = "★"
-                starBtn.TextColor3 = C.accent
-            end
-            saveConfig()
-            if currentTab == "Favs" then populateList() end
-        end)
+        row.Star.Text = isFav and "★" or "☆"
+        row.Star.TextColor3 = isFav and C.accent or C.textMuted
 
-        -- Play button
-        local isCustom = anim.isCustom or (anim.category == "Custom")
-        local playBtn = Instance.new("TextButton")
-        playBtn.Size = UDim2.new(1, isCustom and -108 or -78, 1, 0)
-        playBtn.Position = UDim2.new(0, 30, 0, 0)
-        playBtn.BackgroundTransparency = 1
-        playBtn.RichText = true
-        playBtn.Text = isCustom and (anim.name .. " <font color=\"rgb(180,180,180)\">[CUSTOM]</font>") or anim.name
-        playBtn.TextColor3 = (activeOutlineAnim == anim.name) and C.accent or C.text
-        playBtn.Font = (activeOutlineAnim == anim.name) and Enum.Font.GothamBold or Enum.Font.GothamMedium
-        playBtn.TextSize = 11
-        playBtn.TextXAlignment = Enum.TextXAlignment.Left
-        playBtn.TextTruncate = Enum.TextTruncate.AtEnd
-        playBtn.Parent = row
+        local custom = isCustomAnim(anim)
+        if custom then
+            row.Play.Text = anim.name .. " <font color=\"rgb(150,154,164)\">[CUSTOM]</font>"
+            row.Play.Size = UDim2.new(1, -108, 1, 0)
+            row.Key.Position = UDim2.new(1, -72, 0.5, -11)
+            row.Key.Visible = true
+            row.Del.Visible = true
+        else
+            row.Play.Text = anim.name
+            row.Play.Size = UDim2.new(1, -78, 1, 0)
+            row.Key.Position = UDim2.new(1, -46, 0.5, -11)
+            row.Key.Visible = true
+            row.Del.Visible = false
+        end
+        row.Play.TextColor3 = isPlaying and C.accent or C.text
+        row.Play.Font = isPlaying and Enum.Font.GothamBold or Enum.Font.GothamMedium
 
-        animButtons[anim.name] = { btn = playBtn, star = starBtn }
-
-        playBtn.MouseButton1Click:Connect(function()
-            playSelectedAnimation(anim)
-            for aName, widgets in pairs(animButtons) do
-                local isActive = (activeOutlineAnim == aName)
-                local rowBg = isActive and C.surfaceHover or C.surface
-                -- update row background if we can find it
-                local parentRow = widgets.btn.Parent
-                if parentRow and parentRow:IsA("Frame") then
-                    parentRow.BackgroundColor3 = rowBg
-                end
-                widgets.btn.TextColor3 = isActive and C.accent or C.text
-                widgets.btn.Font = isActive and Enum.Font.GothamBold or Enum.Font.GothamMedium
-            end
-        end)
-
-        -- Keybind button
-        local keyBtn = Instance.new("TextButton")
-        keyBtn.Size = UDim2.new(0, 38, 0, 22)
-        keyBtn.Position = UDim2.new(1, isCustom and -72 or -44, 0.5, -11)
-        keyBtn.BackgroundColor3 = C.input
         local boundKey = savedConfig.binds[anim.name]
-        keyBtn.Text = boundKey and ("["..boundKey.."]") or "[+]"
-        keyBtn.TextColor3 = boundKey and C.accent or C.textMuted
-        keyBtn.Font = Enum.Font.GothamSemibold
-        keyBtn.TextSize = 10
-        keyBtn.Parent = row
-        applyCorner(keyBtn, 4)
-        keyBtn.MouseButton1Click:Connect(function()
-            if currentlyBinding and currentlyBinding.name == anim.name then
-                currentlyBinding = nil
-                local b = savedConfig.binds[anim.name]
-                keyBtn.Text = b and ("["..b.."]") or "[+]"
-                keyBtn.TextColor3 = b and C.accent or C.textMuted
-                return
-            end
-            currentlyBinding = { name = anim.name, btn = keyBtn }
-            keyBtn.Text = "[?]"
-            keyBtn.TextColor3 = Color3.fromRGB(200,200,200)
-        end)
+        row.Key.Text = boundKey and ("["..boundKey.."]") or "[+]"
+        row.Key.TextColor3 = boundKey and C.accent or C.textMuted
 
-        if isCustom then
-            local delBtn = Instance.new("TextButton")
-            delBtn.Size = UDim2.new(0, 24, 0, 22)
-            delBtn.Position = UDim2.new(1, -28, 0.5, -11)
-            delBtn.BackgroundColor3 = C.input
-            delBtn.Text = "✕"
-            delBtn.TextColor3 = C.textMuted
-            delBtn.Font = Enum.Font.GothamBold
-            delBtn.TextSize = 10
-            delBtn.Parent = row
-            applyCorner(delBtn, 4)
-            delBtn.MouseButton1Click:Connect(function()
-                for i, a in ipairs(animations) do
-                    if a.name == anim.name then table.remove(animations, i); break end
-                end
-                for i, ca in ipairs(savedConfig.customAnims) do
-                    if ca.name == anim.name then table.remove(savedConfig.customAnims, i); break end
-                end
-                savedConfig.favs[anim.name] = nil
-                savedConfig.binds[anim.name] = nil
-                saveConfig()
-                populateList()
-            end)
-        end
-
-        if count % ROWS_PER_YIELD == 0 then
-            task.wait()  -- yield to keep UI responsive
-        end
+        activeRows[i] = row
     end
 
-    scrollList.CanvasSize = UDim2.new(0,0,0, #displayList * (ROW_HEIGHT + 4))
+    scrollList.CanvasSize = UDim2.new(0,0,0, total * (ROW_HEIGHT + 5) + 8)
 end
 
-searchBox:GetPropertyChangedSignal("Text"):Connect(populateList)
+-- Drag-to-reorder tracking (Favs tab)
+UserInputService.InputChanged:Connect(function(input)
+    if not dragState then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement
+        and input.UserInputType ~= Enum.UserInputType.Touch then return end
+
+    local pointerY = input.Position.Y
+    local relY = pointerY - scrollList.AbsolutePosition.Y + scrollList.CanvasPosition.Y
+    local total = #savedConfig.favOrder
+    if total == 0 then return end
+
+    local newIndex = math.clamp(math.floor(relY / (ROW_HEIGHT + 5)) + 1, 1, total)
+
+    if newIndex ~= dragState.index then
+        table.remove(savedConfig.favOrder, dragState.index)
+        table.insert(savedConfig.favOrder, newIndex, dragState.animName)
+        dragState.index = newIndex
+        markListDirty()
+        populateList()
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if not dragState then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1
+        and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    dragState = nil
+    saveConfig()
+    markListDirty()
+    populateList()
+end)
+
+-- Debounced search repopulation
+local searchToken = 0
+local function queueSearch()
+    searchToken = searchToken + 1
+    local myToken = searchToken
+    task.delay(0.08, function()
+        if myToken == searchToken then
+            markListDirty()
+            populateList()
+        end
+    end)
+end
+searchBox:GetPropertyChangedSignal("Text"):Connect(queueSearch)
 
 -- Binds list
 function populateBindsList()
@@ -1538,16 +2088,17 @@ function populateBindsList()
     emptyBindsLabel.Visible = (#boundItems == 0)
     for i, item in ipairs(boundItems) do
         local row = Instance.new("Frame")
-        row.Size = UDim2.new(1, -6, 0, 36)
+        row.Size = UDim2.new(1, -6, 0, 38)
         row.BackgroundColor3 = C.surface
         row.BorderSizePixel = 0
         row.LayoutOrder = i+1
         row.Parent = bindsPanel
-        applyCorner(row, 6)
+        applyCorner(row, 8)
+        applyStroke(row, C.borderSoft, 1, 0.6)
 
         local playBtn = Instance.new("TextButton")
-        playBtn.Size = UDim2.new(1, -120, 1, 0)
-        playBtn.Position = UDim2.new(0, 12, 0, 0)
+        playBtn.Size = UDim2.new(1, -124, 1, 0)
+        playBtn.Position = UDim2.new(0, 14, 0, 0)
         playBtn.BackgroundTransparency = 1
         playBtn.Text = item.name
         playBtn.TextColor3 = C.text
@@ -1555,6 +2106,7 @@ function populateBindsList()
         playBtn.TextSize = 11
         playBtn.TextXAlignment = Enum.TextXAlignment.Left
         playBtn.TextTruncate = Enum.TextTruncate.AtEnd
+        playBtn.AutoButtonColor = false
         playBtn.Parent = row
         playBtn.MouseButton1Click:Connect(function()
             for _, a in ipairs(animations) do if a.name == item.name then playSelectedAnimation(a); break end end
@@ -1562,14 +2114,16 @@ function populateBindsList()
 
         local keyBtn = Instance.new("TextButton")
         keyBtn.Size = UDim2.new(0, 48, 0, 24)
-        keyBtn.Position = UDim2.new(1, -100, 0.5, -12)
+        keyBtn.Position = UDim2.new(1, -104, 0.5, -12)
         keyBtn.BackgroundColor3 = C.input
         keyBtn.Text = "["..item.key.."]"
         keyBtn.TextColor3 = C.accent
         keyBtn.Font = Enum.Font.GothamBold
         keyBtn.TextSize = 10
+        keyBtn.AutoButtonColor = false
         keyBtn.Parent = row
-        applyCorner(keyBtn, 4)
+        applyCorner(keyBtn, 5)
+        applyStroke(keyBtn, C.borderSoft, 1, 0.6)
         keyBtn.MouseButton1Click:Connect(function()
             if currentlyBinding and currentlyBinding.name == item.name then
                 currentlyBinding = nil
@@ -1579,32 +2133,38 @@ function populateBindsList()
             end
             currentlyBinding = { name = item.name, btn = keyBtn }
             keyBtn.Text = "[?]"
-            keyBtn.TextColor3 = Color3.fromRGB(200,200,200)
+            keyBtn.TextColor3 = C.accentDim
         end)
 
         local unbindBtn = Instance.new("TextButton")
-        unbindBtn.Size = UDim2.new(0, 42, 0, 24)
-        unbindBtn.Position = UDim2.new(1, -48, 0.5, -12)
+        unbindBtn.Size = UDim2.new(0, 46, 0, 24)
+        unbindBtn.Position = UDim2.new(1, -52, 0.5, -12)
         unbindBtn.BackgroundColor3 = C.input
         unbindBtn.Text = "Unbind"
         unbindBtn.TextColor3 = C.textMuted
         unbindBtn.Font = Enum.Font.GothamSemibold
         unbindBtn.TextSize = 9
+        unbindBtn.AutoButtonColor = false
         unbindBtn.Parent = row
-        applyCorner(unbindBtn, 4)
+        applyCorner(unbindBtn, 5)
         unbindBtn.MouseButton1Click:Connect(function()
             savedConfig.binds[item.name] = nil
             saveConfig()
+            markListDirty()
             populateBindsList()
         end)
     end
-    bindsPanel.CanvasSize = UDim2.new(0,0,0, 26 + #boundItems * 42)
+    bindsPanel.CanvasSize = UDim2.new(0,0,0, 26 + #boundItems * 44)
 end
 
 -- ═══════════════════════════════════════════════════
--- TAB SWITCHING (instant, no tweens)
+-- TAB SWITCHING
 -- ═══════════════════════════════════════════════════
 switchTab = function(tab)
+    if dragState then
+        dragState = nil
+        saveConfig()
+    end
     currentTab = tab
     for tName, data in pairs(tabButtons) do
         local isActive = (tName == tab)
@@ -1624,16 +2184,17 @@ switchTab = function(tab)
         if tab == "Favs" then
             searchBox.PlaceholderText = "Search favorites..."
             addCustomBtn.Visible = false
-            searchBox.Size = UDim2.new(1, 0, 0, 30)
+            searchBox.Size = UDim2.new(1, 0, 0, 32)
         elseif tab == "Custom" then
             searchBox.PlaceholderText = "Search custom animations..."
             addCustomBtn.Visible = true
-            searchBox.Size = UDim2.new(1, -96, 0, 30)
+            searchBox.Size = UDim2.new(1, -100, 0, 32)
         else
             searchBox.PlaceholderText = "Search animations..."
             addCustomBtn.Visible = true
-            searchBox.Size = UDim2.new(1, -96, 0, 30)
+            searchBox.Size = UDim2.new(1, -100, 0, 32)
         end
+        markListDirty()
         populateList()
     elseif tab == "Binds" then
         populateBindsList()
@@ -1723,6 +2284,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
             for _, a in ipairs(animations) do
                 if a.name == animName then
                     playSelectedAnimation(a)
+                    populateList()
                     return
                 end
             end
@@ -1738,6 +2300,8 @@ local function updateReanimButtonState()
     toggleBtn.Text = isReanimated and "Disable Reanim" or "Enable Reanim"
     toggleBtn.TextColor3 = isReanimated and C.accent or C.text
     toggleBtn.BackgroundColor3 = isReanimated and C.surface or C.input
+    toggleStroke.Color = isReanimated and C.accent or C.border
+    toggleStroke.Transparency = isReanimated and 0.4 or 0.6
 end
 
 toggleBtn.MouseButton1Click:Connect(function()
@@ -1754,10 +2318,22 @@ toggleBtn.MouseButton1Click:Connect(function()
             manualAnimationPlaying = false
             updateNowPlayingUI(nil)
         end
+        -- Give the module a beat to finish clone setup / teardown, then
+        -- reapply height to whichever humanoid is now visible.
+        task.wait(0.15)
+        applyHeightToVisible()
     end)
 end)
 
 -- Initialize
 updateReanimButtonState()
 applySpeed(currentSpeed)
+
+-- Apply initial height once the character is ready
+if player.Character then
+    task.wait(0.1)
+end
+applyHeightToVisible()
+
+markListDirty()
 populateList()
