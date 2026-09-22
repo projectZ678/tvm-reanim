@@ -1,6 +1,7 @@
 -- ═══════════════════════════════════════════════════
 -- TVM Reanimation Runner - FULLY FIXED (Arm + Syntax)
 -- Arm Stretch stays attached & Height restore fixed
+-- + Torso Aim (Stretch / Follow) binds
 -- ═══════════════════════════════════════════════════
 
 local CoreGui = game:GetService("CoreGui")
@@ -839,7 +840,7 @@ applyCorner(resetHeightBtn, 5)
 applyStroke(resetHeightBtn, C.borderSoft, 1, 0.6)
 
 local HEIGHT_STUDS_PER_MULT = 2.0
-local baseHipHeights = setmetatable({}, { __mode = "k" })   -- FIXED: } moved here
+local baseHipHeights = setmetatable({}, { __mode = "k" })
 
 local function getBaseHipHeight(hum)
     if not hum then return nil end
@@ -1640,7 +1641,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ═══════════════════════════════════════════════════
--- BODY PANEL - ARM STRETCH (LIMIT NOW 1300)
+-- BODY PANEL - ARM STRETCH / FACE ATTACH / TORSO AIM
 -- ═══════════════════════════════════════════════════
 local BodyArm = {}
 (function()
@@ -1798,7 +1799,7 @@ local BodyArm = {}
         bind = Enum.KeyCode.E,
         mode = "Toggle",
         side = "Right",
-        length = 1300,  -- CHANGED: limit now 1300
+        length = 1300,
         capturing = false,
         data = nil,
         connection = nil,
@@ -1853,8 +1854,6 @@ local BodyArm = {}
         local wM = findMotorInModel(model, hd)
         if not sM or not eM or not wM then return nil end
 
-        -- Capture the shoulder position BEFORE disabling motors/anchoring the arm.
-        -- The offset is kept in root-local space so the anchored arm follows the body.
         local root = model:FindFirstChild("HumanoidRootPart")
         if not root then return nil end
 
@@ -1927,9 +1926,6 @@ local BodyArm = {}
         if not data or not data.upper or not data.upper.Parent then return nil end
         if not root or not root.Parent then return nil end
         if not data.shoulderRootOffset then return nil end
-
-        -- Never derive the shoulder from the anchored arm itself.
-        -- Rebuild it from the moving root so the stretched arm stays attached.
         return root.CFrame:PointToWorldSpace(data.shoulderRootOffset)
     end
 
@@ -1941,7 +1937,7 @@ local BodyArm = {}
         if not dir or dir.Magnitude < 0.01 then return end
         if not origin then return end
         dir = dir.Unit
-        length = math.clamp(length or 1300, 1, 1300)  -- CHANGED: now 1300
+        length = math.clamp(length or 1300, 1, 1300)
 
         local uL = data.origSizes.upper.Y
         local lL = math.max(length - uL, 0.1)
@@ -1972,7 +1968,6 @@ local BodyArm = {}
         if ArmStretch.data then
             for _, d in ipairs(ArmStretch.data) do
                 restoreArmData(d)
-                -- Extra safety in case a motor's original Enabled state was true.
                 if d.shoulderMotor and d.shoulderMotor.Parent and d.origMotorOn.shoulder then
                     d.shoulderMotor.Enabled = true
                 end
@@ -2048,8 +2043,6 @@ local BodyArm = {}
                 dir = ArmStretch.lastDir or root.CFrame.LookVector
             end
 
-            -- Aim from the shoulder instead of the root. This keeps the requested
-            -- reach consistent and prevents the arm from appearing detached.
             local aimOrigin = nil
             for _, d in ipairs(ArmStretch.data) do
                 aimOrigin = getShoulderOrigin(d, root)
@@ -2306,7 +2299,6 @@ local BodyArm = {}
         if not targetHead then return false, "Target head missing" end
         if not faceAttachment then return false, "Target has no FaceFrontAttachment" end
 
-        -- Use the exact same arm-building/anchoring method as Arm Stretch.
         stopFaceAttach()
         if ArmStretch.active then
             stopArmStretch()
@@ -2426,13 +2418,498 @@ local BodyArm = {}
     BodyArm.toggleFaceAttachAtCursor = toggleFaceAttachAtCursor
     BodyArm.refreshFaceAttachUI = refreshFaceAttachUI
 
-    bodySectionTitle("UTILITIES", 10)
+    -- ── Torso Aim (Stretch + Follow) ──
+    bodySectionTitle("TORSO AIM", 10)
+
+    local torsoCard = Instance.new("Frame")
+    torsoCard.Size = UDim2.new(1, 0, 0, 194)
+    torsoCard.BackgroundColor3 = C.surface
+    torsoCard.BorderSizePixel = 0
+    torsoCard.LayoutOrder = 10
+    torsoCard.Parent = bodyPanel
+    applyCorner(torsoCard, 10)
+    applyStroke(torsoCard, C.borderSoft, 1, 0.5)
+
+    local torsoEnableBtn = Instance.new("TextButton")
+    torsoEnableBtn.Size = UDim2.new(1, -24, 0, 30)
+    torsoEnableBtn.Position = UDim2.new(0, 12, 0, 12)
+    torsoEnableBtn.BackgroundColor3 = C.input
+    torsoEnableBtn.Text = "Enable Torso Aim"
+    torsoEnableBtn.TextColor3 = C.text
+    torsoEnableBtn.Font = Enum.Font.GothamBold
+    torsoEnableBtn.TextSize = 11
+    torsoEnableBtn.AutoButtonColor = false
+    torsoEnableBtn.Parent = torsoCard
+    applyCorner(torsoEnableBtn, 6)
+    applyStroke(torsoEnableBtn, C.borderSoft, 1, 0.6)
+
+    local torsoModeBtn = Instance.new("TextButton")
+    torsoModeBtn.Size = UDim2.new(0, 174, 0, 26)
+    torsoModeBtn.Position = UDim2.new(0, 12, 0, 50)
+    torsoModeBtn.BackgroundColor3 = C.input
+    torsoModeBtn.Text = "Mode: Stretch"
+    torsoModeBtn.TextColor3 = C.text
+    torsoModeBtn.Font = Enum.Font.GothamSemibold
+    torsoModeBtn.TextSize = 10
+    torsoModeBtn.AutoButtonColor = false
+    torsoModeBtn.Parent = torsoCard
+    applyCorner(torsoModeBtn, 6)
+    applyStroke(torsoModeBtn, C.borderSoft, 1, 0.6)
+
+    local torsoReachInfo = Instance.new("TextLabel")
+    torsoReachInfo.Size = UDim2.new(0, 174, 0, 26)
+    torsoReachInfo.Position = UDim2.new(1, -186, 0, 50)
+    torsoReachInfo.BackgroundColor3 = C.input
+    torsoReachInfo.Text = "Reach: 14"
+    torsoReachInfo.TextColor3 = C.text
+    torsoReachInfo.Font = Enum.Font.GothamSemibold
+    torsoReachInfo.TextSize = 10
+    torsoReachInfo.Parent = torsoCard
+    applyCorner(torsoReachInfo, 6)
+    applyStroke(torsoReachInfo, C.borderSoft, 1, 0.6)
+
+    local torsoStretchBindBtn = Instance.new("TextButton")
+    torsoStretchBindBtn.Size = UDim2.new(0, 174, 0, 26)
+    torsoStretchBindBtn.Position = UDim2.new(0, 12, 0, 82)
+    torsoStretchBindBtn.BackgroundColor3 = C.input
+    torsoStretchBindBtn.Text = "Stretch Bind: T"
+    torsoStretchBindBtn.TextColor3 = C.accent
+    torsoStretchBindBtn.Font = Enum.Font.GothamBold
+    torsoStretchBindBtn.TextSize = 10
+    torsoStretchBindBtn.AutoButtonColor = false
+    torsoStretchBindBtn.Parent = torsoCard
+    applyCorner(torsoStretchBindBtn, 6)
+    applyStroke(torsoStretchBindBtn, C.borderSoft, 1, 0.6)
+
+    local torsoFollowBindBtn = Instance.new("TextButton")
+    torsoFollowBindBtn.Size = UDim2.new(0, 174, 0, 26)
+    torsoFollowBindBtn.Position = UDim2.new(1, -186, 0, 82)
+    torsoFollowBindBtn.BackgroundColor3 = C.input
+    torsoFollowBindBtn.Text = "Follow Bind: Y"
+    torsoFollowBindBtn.TextColor3 = C.accent
+    torsoFollowBindBtn.Font = Enum.Font.GothamBold
+    torsoFollowBindBtn.TextSize = 10
+    torsoFollowBindBtn.AutoButtonColor = false
+    torsoFollowBindBtn.Parent = torsoCard
+    applyCorner(torsoFollowBindBtn, 6)
+    applyStroke(torsoFollowBindBtn, C.borderSoft, 1, 0.6)
+
+    local torsoReachLabel = Instance.new("TextLabel")
+    torsoReachLabel.Size = UDim2.new(1, -24, 0, 14)
+    torsoReachLabel.Position = UDim2.new(0, 12, 0, 118)
+    torsoReachLabel.BackgroundTransparency = 1
+    torsoReachLabel.Text = "REACH: 14"
+    torsoReachLabel.TextColor3 = C.textMuted
+    torsoReachLabel.Font = Enum.Font.GothamBold
+    torsoReachLabel.TextSize = 9
+    torsoReachLabel.TextXAlignment = Enum.TextXAlignment.Left
+    torsoReachLabel.Parent = torsoCard
+
+    local torsoReachTrack = Instance.new("Frame")
+    torsoReachTrack.Size = UDim2.new(1, -24, 0, 6)
+    torsoReachTrack.Position = UDim2.new(0, 12, 0, 136)
+    torsoReachTrack.BackgroundColor3 = C.input
+    torsoReachTrack.BorderSizePixel = 0
+    torsoReachTrack.Parent = torsoCard
+    applyCorner(torsoReachTrack, 3)
+
+    local torsoReachFill = Instance.new("Frame")
+    torsoReachFill.Size = UDim2.new(0.14, 0, 1, 0)
+    torsoReachFill.BackgroundColor3 = C.accent
+    torsoReachFill.BorderSizePixel = 0
+    torsoReachFill.Parent = torsoReachTrack
+    applyCorner(torsoReachFill, 3)
+
+    local torsoReachKnob = Instance.new("Frame")
+    torsoReachKnob.Size = UDim2.new(0, 12, 0, 12)
+    torsoReachKnob.Position = UDim2.new(1, -6, 0.5, -6)
+    torsoReachKnob.BackgroundColor3 = C.text
+    torsoReachKnob.BorderSizePixel = 0
+    torsoReachKnob.Parent = torsoReachFill
+    applyCorner(torsoReachKnob, 6)
+
+    local torsoHint = Instance.new("TextLabel")
+    torsoHint.Size = UDim2.new(1, -24, 0, 34)
+    torsoHint.Position = UDim2.new(0, 12, 0, 152)
+    torsoHint.BackgroundTransparency = 1
+    torsoHint.Text = "Stretch = torso detaches & reaches to cursor. Follow = torso stays attached, just leans/rotates toward cursor."
+    torsoHint.TextColor3 = C.textDim
+    torsoHint.Font = Enum.Font.Gotham
+    torsoHint.TextSize = 9
+    torsoHint.TextWrapped = true
+    torsoHint.TextXAlignment = Enum.TextXAlignment.Left
+    torsoHint.TextYAlignment = Enum.TextYAlignment.Top
+    torsoHint.Parent = torsoCard
+
+    local TorsoAim = {
+        active = false,
+        mode = "Stretch",
+        stretchBind = Enum.KeyCode.T,
+        followBind  = Enum.KeyCode.Y,
+        stretchReach = 14,
+        followStrength = 100,
+        capturing = nil,
+        data = nil,
+        connection = nil,
+        smoothPos = nil,
+        lastDir = nil,
+    }
+
+    local function setPartCFrame(part, pos, lookDir)
+        if not part or not part.Parent then return end
+        local look = lookDir
+        if not look or look.Magnitude < 0.01 then look = Vector3.new(0,0,-1) end
+        look = look.Unit
+        local right = Vector3.new(0,1,0):Cross(look)
+        if right.Magnitude < 0.05 then right = Vector3.new(1,0,0):Cross(look) end
+        right = right.Unit
+        local up = look:Cross(right).Unit
+        part.CFrame = CFrame.fromMatrix(pos, right, up, -look)
+    end
+
+    local function findWaistMotor(model)
+        if not model then return nil, nil end
+        local up = model:FindFirstChild("UpperTorso")
+        if not up then return nil, nil end
+        local waistMotor
+        for _, m in ipairs(model:GetDescendants()) do
+            if m:IsA("Motor6D") and m.Part1 == up then waistMotor = m; break end
+        end
+        if not waistMotor then
+            for _, m in ipairs(model:GetDescendants()) do
+                if m:IsA("Motor6D") and m.Name:lower():find("waist") then waistMotor = m; break end
+            end
+        end
+        return up, waistMotor
+    end
+
+    local function prepareStretchData(model)
+        if not model then return nil end
+        local up, waistMotor = findWaistMotor(model)
+        if not up or not waistMotor then return nil end
+
+        local data = {
+            mode = "Stretch",
+            upper = up,
+            waistMotor = waistMotor,
+            origUpper = {
+                anchored = up.Anchored,
+                canCollide = up.CanCollide,
+                canTouch = up.CanTouch,
+                canQuery = up.CanQuery,
+                massless = up.Massless,
+            },
+            origWaist = {
+                enabled = waistMotor.Enabled,
+                c0 = waistMotor.C0,
+                c1 = waistMotor.C1,
+            },
+            rootPart = model:FindFirstChild("LowerTorso") or model:FindFirstChild("HumanoidRootPart"),
+        }
+        waistMotor.Enabled = false
+        up.Anchored = true
+        up.CanCollide = false
+        up.CanTouch = false
+        up.CanQuery = false
+        up.Massless = true
+        return data
+    end
+
+    local function prepareFollowData(model)
+        if not model then return nil end
+        local up, waistMotor = findWaistMotor(model)
+        if not up or not waistMotor then return nil end
+        if not waistMotor.Part0 then return nil end
+
+        return {
+            mode = "Follow",
+            upper = up,
+            waistMotor = waistMotor,
+            origC0 = waistMotor.C0,
+            origC1 = waistMotor.C1,
+            rootPart = waistMotor.Part0,
+        }
+    end
+
+    local function restoreTorsoData(data)
+        if not data then return end
+        pcall(function()
+            if data.mode == "Stretch" then
+                if data.upper and data.upper.Parent then
+                    data.upper.Anchored = data.origUpper.anchored
+                    data.upper.CanCollide = data.origUpper.canCollide
+                    data.upper.CanTouch = data.origUpper.canTouch
+                    data.upper.CanQuery = data.origUpper.canQuery
+                    data.upper.Massless = data.origUpper.massless
+                end
+                if data.waistMotor and data.waistMotor.Parent then
+                    data.waistMotor.Enabled = data.origWaist.enabled
+                    data.waistMotor.C0 = data.origWaist.c0
+                    data.waistMotor.C1 = data.origWaist.c1
+                end
+            elseif data.mode == "Follow" then
+                if data.waistMotor and data.waistMotor.Parent then
+                    data.waistMotor.C0 = data.origC0
+                    data.waistMotor.C1 = data.origC1
+                end
+            end
+        end)
+    end
+
+    local function stopTorsoAim()
+        if TorsoAim.connection then
+            TorsoAim.connection:Disconnect()
+            TorsoAim.connection = nil
+        end
+        if TorsoAim.data then
+            restoreTorsoData(TorsoAim.data)
+            TorsoAim.data = nil
+        end
+        TorsoAim.active = false
+        TorsoAim.smoothPos = nil
+        TorsoAim.lastDir = nil
+    end
+
+    local function getCursorDirection(origin)
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            local mouseLoc = UserInputService:GetMouseLocation()
+            local ray = workspace.CurrentCamera:ViewportPointToRay(mouseLoc.X, mouseLoc.Y)
+            local target = ray.Origin + ray.Direction * 200
+            local v = target - origin
+            if v.Magnitude > 0.1 then
+                return v.Unit
+            end
+        end
+        return nil
+    end
+
+    local function startTorsoStretch()
+        if not (api and api.is_reanimated and api.is_reanimated()) then
+            return false, "Enable Reanim first"
+        end
+        stopTorsoAim()
+
+        local model = getActiveCharacter()
+        if not model then return false, "No character / clone" end
+
+        local data = prepareStretchData(model)
+        if not data then return false, "Could not prepare torso" end
+
+        TorsoAim.data = data
+        TorsoAim.active = true
+        TorsoAim.mode = "Stretch"
+        TorsoAim.smoothPos = nil
+        TorsoAim.lastDir = nil
+
+        TorsoAim.connection = RunService.Heartbeat:Connect(function(dt)
+            if not TorsoAim.active then return end
+            local model = getActiveCharacter()
+            if not model then stopTorsoAim(); return end
+            local data = TorsoAim.data
+            if not data or not data.upper or not data.upper.Parent then stopTorsoAim(); return end
+
+            local root = model:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            local lt = data.rootPart
+            local origin
+            if lt and lt.Parent then
+                origin = lt.Position + Vector3.new(0, 1.2, 0)
+            else
+                origin = root.Position + Vector3.new(0, 1.2, 0)
+            end
+
+            local dir = getCursorDirection(origin)
+            if dir then
+                TorsoAim.lastDir = dir
+            else
+                dir = TorsoAim.lastDir or root.CFrame.LookVector
+            end
+
+            local reach = TorsoAim.stretchReach
+            local dp = origin + dir * reach
+            if not TorsoAim.smoothPos then
+                TorsoAim.smoothPos = dp
+            else
+                local a = math.clamp(dt * 18, 0, 1)
+                TorsoAim.smoothPos = TorsoAim.smoothPos:Lerp(dp, a)
+            end
+
+            setPartCFrame(data.upper, TorsoAim.smoothPos, dir)
+        end)
+
+        return true, "Torso stretch ON"
+    end
+
+    local function startTorsoFollow()
+        if not (api and api.is_reanimated and api.is_reanimated()) then
+            return false, "Enable Reanim first"
+        end
+        stopTorsoAim()
+
+        local model = getActiveCharacter()
+        if not model then return false, "No character / clone" end
+
+        local data = prepareFollowData(model)
+        if not data then return false, "Could not prepare torso (clone not ready?)" end
+
+        TorsoAim.data = data
+        TorsoAim.active = true
+        TorsoAim.mode = "Follow"
+        TorsoAim.lastDir = nil
+
+        TorsoAim.connection = RunService.Heartbeat:Connect(function(dt)
+            if not TorsoAim.active then return end
+            local model = getActiveCharacter()
+            if not model then stopTorsoAim(); return end
+            local data = TorsoAim.data
+            if not data or not data.waistMotor or not data.waistMotor.Parent then
+                stopTorsoAim(); return
+            end
+            local part0 = data.waistMotor.Part0
+            if not part0 then return end
+
+            local origin = part0.Position
+            local dir = getCursorDirection(origin)
+            if dir then
+                TorsoAim.lastDir = dir
+            else
+                dir = TorsoAim.lastDir or part0.CFrame.LookVector
+            end
+
+            local rel = part0.CFrame:VectorToObjectSpace(dir)
+
+            local yaw = math.atan2(-rel.X, -rel.Z)
+            local pitch = math.asin(math.clamp(rel.Y, -1, 1))
+
+            -- Strength maps 1..100 -> 0..1 multiplier for max bend
+            local strength = math.clamp((TorsoAim.followStrength - 1) / 99, 0, 1)
+
+            -- Allow near-full rotation so the torso can bend all the way down/up
+            -- and twist around: 170° yaw, 90° pitch at 100% strength
+            local maxYaw = math.rad(170) * strength
+            local maxPitch = math.rad(90) * strength
+
+            yaw = math.clamp(yaw, -maxYaw, maxYaw)
+            pitch = math.clamp(pitch, -maxPitch, maxPitch)
+
+            local rot = CFrame.Angles(pitch, yaw, 0)
+            data.waistMotor.C0 = CFrame.new(data.origC0.Position) * rot
+        end)
+
+        return true, "Torso follow ON"
+    end
+
+    local function startTorsoAim(mode)
+        if mode == "Follow" then
+            return startTorsoFollow()
+        else
+            return startTorsoStretch()
+        end
+    end
+
+    local function refreshTorsoAimUI()
+        if TorsoAim.active then
+            torsoEnableBtn.Text = "Disable Torso Aim"
+            torsoEnableBtn.BackgroundColor3 = C.accent
+            torsoEnableBtn.TextColor3 = C.bg
+            local stroke = torsoEnableBtn:FindFirstChildOfClass("UIStroke")
+            if stroke then stroke.Color = C.accent end
+        else
+            torsoEnableBtn.Text = "Enable Torso Aim"
+            torsoEnableBtn.BackgroundColor3 = C.input
+            torsoEnableBtn.TextColor3 = C.text
+            local stroke = torsoEnableBtn:FindFirstChildOfClass("UIStroke")
+            if stroke then stroke.Color = C.borderSoft end
+        end
+        torsoModeBtn.Text = "Mode: "..TorsoAim.mode
+        torsoStretchBindBtn.Text = "Stretch Bind: "..TorsoAim.stretchBind.Name
+        torsoStretchBindBtn.TextColor3 = (TorsoAim.capturing == "stretch") and C.accentDim or C.accent
+        torsoFollowBindBtn.Text = "Follow Bind: "..TorsoAim.followBind.Name
+        torsoFollowBindBtn.TextColor3 = (TorsoAim.capturing == "follow") and C.accentDim or C.accent
+
+        if TorsoAim.mode == "Follow" then
+            torsoReachInfo.Text = "Lean: "..tostring(math.floor(TorsoAim.followStrength)).."%"
+            torsoReachLabel.Text = "LEAN STRENGTH: "..tostring(math.floor(TorsoAim.followStrength)).."%"
+            local pct = math.clamp((TorsoAim.followStrength - 1) / 99, 0, 1)
+            torsoReachFill.Size = UDim2.new(pct, 0, 1, 0)
+        else
+            torsoReachInfo.Text = "Reach: "..tostring(math.floor(TorsoAim.stretchReach))
+            torsoReachLabel.Text = "REACH: "..tostring(math.floor(TorsoAim.stretchReach))
+            local pct = math.clamp((TorsoAim.stretchReach - 1) / 99, 0, 1)
+            torsoReachFill.Size = UDim2.new(pct, 0, 1, 0)
+        end
+    end
+
+    torsoEnableBtn.MouseButton1Click:Connect(function()
+        if TorsoAim.active then
+            stopTorsoAim()
+            refreshTorsoAimUI()
+        else
+            local ok, msg = startTorsoAim(TorsoAim.mode)
+            if not ok then warn("Torso aim: "..tostring(msg)) end
+            refreshTorsoAimUI()
+        end
+    end)
+
+    torsoModeBtn.MouseButton1Click:Connect(function()
+        TorsoAim.mode = (TorsoAim.mode == "Stretch") and "Follow" or "Stretch"
+        if TorsoAim.active then
+            stopTorsoAim()
+            startTorsoAim(TorsoAim.mode)
+        end
+        refreshTorsoAimUI()
+    end)
+
+    torsoStretchBindBtn.MouseButton1Click:Connect(function()
+        TorsoAim.capturing = "stretch"
+        refreshTorsoAimUI()
+    end)
+
+    torsoFollowBindBtn.MouseButton1Click:Connect(function()
+        TorsoAim.capturing = "follow"
+        refreshTorsoAimUI()
+    end)
+
+    local draggingTorsoReach = false
+    local function updateTorsoReachFromInput(input)
+        local relX = math.clamp(input.Position.X - torsoReachTrack.AbsolutePosition.X, 0, torsoReachTrack.AbsoluteSize.X)
+        local pct = relX / torsoReachTrack.AbsoluteSize.X
+        if TorsoAim.mode == "Follow" then
+            TorsoAim.followStrength = math.floor(1 + pct * 99)
+        else
+            TorsoAim.stretchReach = math.floor(1 + pct * 99)
+        end
+        refreshTorsoAimUI()
+    end
+    torsoReachTrack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingTorsoReach = true
+            updateTorsoReachFromInput(input)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingTorsoReach = false end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if draggingTorsoReach and input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateTorsoReachFromInput(input)
+        end
+    end)
+
+    BodyArm.TorsoAim = TorsoAim
+    BodyArm.stopTorsoAim = stopTorsoAim
+    BodyArm.startTorsoAim = startTorsoAim
+    BodyArm.refreshTorsoAimUI = refreshTorsoAimUI
+    refreshTorsoAimUI()
+
+    -- ── UTILITIES ──
+    bodySectionTitle("UTILITIES", 11)
 
     local stopAllCard = Instance.new("Frame")
     stopAllCard.Size = UDim2.new(1, 0, 0, 44)
     stopAllCard.BackgroundColor3 = C.surface
     stopAllCard.BorderSizePixel = 0
-    stopAllCard.LayoutOrder = 11
+    stopAllCard.LayoutOrder = 12
     stopAllCard.Parent = bodyPanel
     applyCorner(stopAllCard, 10)
     applyStroke(stopAllCard, C.borderSoft, 1, 0.5)
@@ -2453,10 +2930,13 @@ local BodyArm = {}
     stopAllBtn.MouseButton1Click:Connect(function()
         stopArmStretch()
         refreshArmStretchUI()
+        stopFaceAttach()
+        stopTorsoAim()
+        refreshTorsoAimUI()
     end)
 
     refreshArmStretchUI()
-    bodyPanel.CanvasSize = UDim2.new(0, 0, 0, 320)
+    bodyPanel.CanvasSize = UDim2.new(0, 0, 0, 720)
 
     BodyArm.panel = bodyPanel
     BodyArm.ArmStretch = ArmStretch
@@ -3081,6 +3561,17 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         return
     end
 
+    if BodyArm.TorsoAim and BodyArm.TorsoAim.capturing then
+        if BodyArm.TorsoAim.capturing == "stretch" then
+            BodyArm.TorsoAim.stretchBind = input.KeyCode
+        elseif BodyArm.TorsoAim.capturing == "follow" then
+            BodyArm.TorsoAim.followBind = input.KeyCode
+        end
+        BodyArm.TorsoAim.capturing = nil
+        BodyArm.refreshTorsoAimUI()
+        return
+    end
+
     if currentlyBinding then
         local kName = input.KeyCode.Name
         savedConfig.binds[currentlyBinding.name] = kName
@@ -3110,6 +3601,28 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     if BodyArm.FaceAttach and input.KeyCode == BodyArm.FaceAttach.bind then
         BodyArm.toggleFaceAttachAtCursor()
         return
+    end
+
+    if BodyArm.TorsoAim then
+        if input.KeyCode == BodyArm.TorsoAim.stretchBind then
+            if BodyArm.TorsoAim.active and BodyArm.TorsoAim.mode == "Stretch" then
+                BodyArm.stopTorsoAim()
+            else
+                local ok = BodyArm.startTorsoAim("Stretch")
+                if not ok then warn("Torso aim: enable Reanim first") end
+            end
+            BodyArm.refreshTorsoAimUI()
+            return
+        elseif input.KeyCode == BodyArm.TorsoAim.followBind then
+            if BodyArm.TorsoAim.active and BodyArm.TorsoAim.mode == "Follow" then
+                BodyArm.stopTorsoAim()
+            else
+                local ok = BodyArm.startTorsoAim("Follow")
+                if not ok then warn("Torso aim: enable Reanim first") end
+            end
+            BodyArm.refreshTorsoAimUI()
+            return
+        end
     end
 
     if input.KeyCode == BodyArm.ArmStretch.bind then
@@ -3179,6 +3692,8 @@ toggleBtn.MouseButton1Click:Connect(function()
     toggleBtn.TextColor3 = C.textMuted
     BodyArm.stopArmStretch()
     BodyArm.refreshArmStretchUI()
+    if BodyArm.stopFaceAttach then BodyArm.stopFaceAttach() end
+    if BodyArm.stopTorsoAim then BodyArm.stopTorsoAim(); BodyArm.refreshTorsoAimUI() end
     task.spawn(function()
         local err = api.reanimate(newState)
         if err and typeof(err)=="string" and err ~= "Already reanimated." then
