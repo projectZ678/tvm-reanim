@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════════
 -- TVM Reanimation Runner - FULLY FIXED (Arm + Syntax)
--- Arm Stretch stays attached + Height restore fixed
+-- Arm Stretch stays attached & Height restore fixed
 -- ═══════════════════════════════════════════════════
 
 local CoreGui = game:GetService("CoreGui")
@@ -1640,7 +1640,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ═══════════════════════════════════════════════════
--- BODY PANEL - ARM STRETCH (FULLY FIXED)
+-- BODY PANEL - ARM STRETCH (LIMIT NOW 1300)
 -- ═══════════════════════════════════════════════════
 local BodyArm = {}
 (function()
@@ -1798,7 +1798,7 @@ local BodyArm = {}
         bind = Enum.KeyCode.E,
         mode = "Toggle",
         side = "Right",
-        length = 14,
+        length = 1300,  -- CHANGED: limit now 1300
         capturing = false,
         data = nil,
         connection = nil,
@@ -1941,11 +1941,11 @@ local BodyArm = {}
         if not dir or dir.Magnitude < 0.01 then return end
         if not origin then return end
         dir = dir.Unit
-        length = math.clamp(length or 14, 1, 1200)
+        length = math.clamp(length or 1300, 1, 1300)  -- CHANGED: now 1300
 
         local uL = data.origSizes.upper.Y
         local lL = math.max(length - uL, 0.1)
-        lL = math.min(lL, 1200)
+        lL = math.min(lL, 1300)
 
         local refRight = Vector3.new(1, 0, 0)
         if math.abs(dir:Dot(refRight)) > 0.95 then refRight = Vector3.new(0, 0, 1) end
@@ -2072,7 +2072,7 @@ local BodyArm = {}
                     local toTarget = ArmStretch.currentTarget - origin
                     local dist = toTarget.Magnitude
                     if dist > 0.05 then
-                        updateStretchArm(d, origin, toTarget.Unit, math.min(dist, 1200))
+                        updateStretchArm(d, origin, toTarget.Unit, math.min(dist, 1300))
                     end
                 end
             end
@@ -2199,7 +2199,7 @@ local BodyArm = {}
     faceAttachHint.Size = UDim2.new(1, -24, 0, 42)
     faceAttachHint.Position = UDim2.new(0, 12, 0, 82)
     faceAttachHint.BackgroundTransparency = 1
-    faceAttachHint.Text = "Put your cursor over a player and press the bind.\\nThe arm uses the same face-attachment method and follows their FaceFrontAttachment."
+    faceAttachHint.Text = "Put your cursor over a player and press the bind.\nThe arm uses the same face-attachment method and follows their FaceFrontAttachment."
     faceAttachHint.TextColor3 = C.textDim
     faceAttachHint.Font = Enum.Font.Gotham
     faceAttachHint.TextSize = 9
@@ -2365,6 +2365,7 @@ local BodyArm = {}
             local right = hcf.RightVector
 
             local dataCount = #(FaceAttach.data or {})
+
             for i, d in ipairs(FaceAttach.data or {}) do
                 if not (d.upper and d.upper.Parent and d.lower and d.lower.Parent and d.hand and d.hand.Parent) then
                     stopFaceAttach()
@@ -2381,7 +2382,7 @@ local BodyArm = {}
                     local target = handPos + offset
                     local toTarget = target - origin
                     if toTarget.Magnitude > 0.05 then
-                        updateStretchArm(d, origin, toTarget.Unit, math.min(toTarget.Magnitude, 1200))
+                        updateStretchArm(d, origin, toTarget.Unit, math.min(toTarget.Magnitude, 1300))
                     end
                 end
             end
