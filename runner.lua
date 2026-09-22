@@ -1,3 +1,8 @@
+-- ═══════════════════════════════════════════════════
+-- TVM Reanimation Runner - FULLY FIXED (Arm + Syntax)
+-- Arm Stretch stays attached + Height restore fixed
+-- ═══════════════════════════════════════════════════
+
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -311,7 +316,7 @@ titleBar.InputChanged:Connect(function(input)
 end)
 
 -- Sub-Tab Bar
-local tabNames = { "Reanims", "Favs", "Custom", "Binds", "States", "Speed", "Limbs" }
+local tabNames = { "Reanims", "Favs", "Custom", "Binds", "States", "Speed", "Limbs", "Body" }
 local tabButtons = {}
 local switchTab
 
@@ -833,16 +838,8 @@ resetHeightBtn.Parent = heightCard
 applyCorner(resetHeightBtn, 5)
 applyStroke(resetHeightBtn, C.borderSoft, 1, 0.6)
 
--- ─── Height logic ───
--- We use HipHeight (root part offset) rather than BodyHeightScale, so no
--- limb mesh is ever scaled. We only apply on discrete events (slider move,
--- respawn, reanim toggle) — no continuous polling, because repeatedly
--- writing HipHeight while the reanimation module is rebuilding its clone
--- was what caused physics-driven limb stretching on toggle.
 local HEIGHT_STUDS_PER_MULT = 2.0
-
--- Per-humanoid cached base HipHeight (weak keys so garbage collection works)
-local baseHipHeights = setmetatable({}, { __mode = "k" })
+local baseHipHeights = setmetatable({}, { __mode = "k" })   -- FIXED: } moved here
 
 local function getBaseHipHeight(hum)
     if not hum then return nil end
@@ -860,7 +857,6 @@ local function applyHeightToHumanoid(hum, val)
     if not hum then return end
     local base = getBaseHipHeight(hum)
     if base == nil then return end
-
     local target
     if math.abs(val - 1.0) < 0.001 then
         target = base
@@ -868,13 +864,11 @@ local function applyHeightToHumanoid(hum, val)
         target = base + (val - 1.0) * HEIGHT_STUDS_PER_MULT
         if target < 0 then target = 0 end
     end
-
     if math.abs(hum.HipHeight - target) > 0.005 then
         pcall(function() hum.HipHeight = target end)
     end
 end
 
--- Applies the current height to whichever humanoid is currently visible.
 local function applyHeightToVisible()
     local reanimated = api.is_reanimated and api.is_reanimated()
     local char = player.Character
@@ -925,7 +919,6 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Reapply height after respawn (fresh Humanoid = fresh base)
 player.CharacterAdded:Connect(function()
     task.wait(0.35)
     applyHeightToVisible()
@@ -1647,6 +1640,831 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ═══════════════════════════════════════════════════
+-- BODY PANEL - ARM STRETCH (FULLY FIXED)
+-- ═══════════════════════════════════════════════════
+local BodyArm = {}
+(function()
+    local bodyPanel = Instance.new("ScrollingFrame")
+    bodyPanel.Size = UDim2.new(1, 0, 1, 0)
+    bodyPanel.BackgroundTransparency = 1
+    bodyPanel.BorderSizePixel = 0
+    bodyPanel.ScrollBarThickness = 3
+    bodyPanel.ScrollBarImageColor3 = C.accent
+    bodyPanel.ScrollBarImageTransparency = 0.6
+    bodyPanel.Visible = false
+    bodyPanel.Parent = contentArea
+    pcall(function() bodyPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
+    pcall(function() bodyPanel.CanvasSize = UDim2.new(0,0,0,0) end)
+
+    local bodyPadding = Instance.new("UIPadding")
+    bodyPadding.PaddingLeft = UDim.new(0, 2)
+    bodyPadding.PaddingRight = UDim.new(0, 4)
+    bodyPadding.PaddingTop = UDim.new(0, 2)
+    bodyPadding.PaddingBottom = UDim.new(0, 12)
+    bodyPadding.Parent = bodyPanel
+
+    local bodyLayout = Instance.new("UIListLayout")
+    bodyLayout.Padding = UDim.new(0, 10)
+    bodyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    bodyLayout.Parent = bodyPanel
+
+    local function bodySectionTitle(text, order)
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, 0, 0, 14)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = text
+        lbl.TextColor3 = C.textMuted
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextSize = 10
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.LayoutOrder = order
+        lbl.Parent = bodyPanel
+        return lbl
+    end
+
+    bodySectionTitle("ARM STRETCH", 1)
+
+    local armStretchCard = Instance.new("Frame")
+    armStretchCard.Size = UDim2.new(1, 0, 0, 196)
+    armStretchCard.BackgroundColor3 = C.surface
+    armStretchCard.BorderSizePixel = 0
+    armStretchCard.LayoutOrder = 2
+    armStretchCard.Parent = bodyPanel
+    applyCorner(armStretchCard, 10)
+    applyStroke(armStretchCard, C.borderSoft, 1, 0.5)
+
+    local asEnableBtn = Instance.new("TextButton")
+    asEnableBtn.Size = UDim2.new(1, -24, 0, 30)
+    asEnableBtn.Position = UDim2.new(0, 12, 0, 12)
+    asEnableBtn.BackgroundColor3 = C.input
+    asEnableBtn.Text = "Enable Arm Stretch"
+    asEnableBtn.TextColor3 = C.text
+    asEnableBtn.Font = Enum.Font.GothamBold
+    asEnableBtn.TextSize = 11
+    asEnableBtn.AutoButtonColor = false
+    asEnableBtn.Parent = armStretchCard
+    applyCorner(asEnableBtn, 6)
+    applyStroke(asEnableBtn, C.borderSoft, 1, 0.6)
+
+    local asSideBtn = Instance.new("TextButton")
+    asSideBtn.Size = UDim2.new(0, 174, 0, 26)
+    asSideBtn.Position = UDim2.new(0, 12, 0, 50)
+    asSideBtn.BackgroundColor3 = C.input
+    asSideBtn.Text = "Side: Right"
+    asSideBtn.TextColor3 = C.text
+    asSideBtn.Font = Enum.Font.GothamSemibold
+    asSideBtn.TextSize = 10
+    asSideBtn.AutoButtonColor = false
+    asSideBtn.Parent = armStretchCard
+    applyCorner(asSideBtn, 6)
+    applyStroke(asSideBtn, C.borderSoft, 1, 0.6)
+
+    local asModeBtn = Instance.new("TextButton")
+    asModeBtn.Size = UDim2.new(0, 174, 0, 26)
+    asModeBtn.Position = UDim2.new(1, -186, 0, 50)
+    asModeBtn.BackgroundColor3 = C.input
+    asModeBtn.Text = "Mode: Toggle"
+    asModeBtn.TextColor3 = C.text
+    asModeBtn.Font = Enum.Font.GothamSemibold
+    asModeBtn.TextSize = 10
+    asModeBtn.AutoButtonColor = false
+    asModeBtn.Parent = armStretchCard
+    applyCorner(asModeBtn, 6)
+    applyStroke(asModeBtn, C.borderSoft, 1, 0.6)
+
+    local asBindBtn = Instance.new("TextButton")
+    asBindBtn.Size = UDim2.new(1, -24, 0, 26)
+    asBindBtn.Position = UDim2.new(0, 12, 0, 82)
+    asBindBtn.BackgroundColor3 = C.input
+    asBindBtn.Text = "Bind: E"
+    asBindBtn.TextColor3 = C.accent
+    asBindBtn.Font = Enum.Font.GothamBold
+    asBindBtn.TextSize = 10
+    asBindBtn.AutoButtonColor = false
+    asBindBtn.Parent = armStretchCard
+    applyCorner(asBindBtn, 6)
+    applyStroke(asBindBtn, C.borderSoft, 1, 0.6)
+
+    local asLenLabel = Instance.new("TextLabel")
+    asLenLabel.Size = UDim2.new(1, -24, 0, 14)
+    asLenLabel.Position = UDim2.new(0, 12, 0, 116)
+    asLenLabel.BackgroundTransparency = 1
+    asLenLabel.Text = "REACH: 14"
+    asLenLabel.TextColor3 = C.textMuted
+    asLenLabel.Font = Enum.Font.GothamBold
+    asLenLabel.TextSize = 9
+    asLenLabel.TextXAlignment = Enum.TextXAlignment.Left
+    asLenLabel.Parent = armStretchCard
+
+    local asLenTrack = Instance.new("Frame")
+    asLenTrack.Size = UDim2.new(1, -24, 0, 6)
+    asLenTrack.Position = UDim2.new(0, 12, 0, 134)
+    asLenTrack.BackgroundColor3 = C.input
+    asLenTrack.BorderSizePixel = 0
+    asLenTrack.Parent = armStretchCard
+    applyCorner(asLenTrack, 3)
+
+    local asLenFill = Instance.new("Frame")
+    asLenFill.Size = UDim2.new(0.1, 0, 1, 0)
+    asLenFill.BackgroundColor3 = C.accent
+    asLenFill.BorderSizePixel = 0
+    asLenFill.Parent = asLenTrack
+    applyCorner(asLenFill, 3)
+
+    local asLenKnob = Instance.new("Frame")
+    asLenKnob.Size = UDim2.new(0, 12, 0, 12)
+    asLenKnob.Position = UDim2.new(1, -6, 0.5, -6)
+    asLenKnob.BackgroundColor3 = C.text
+    asLenKnob.BorderSizePixel = 0
+    asLenKnob.Parent = asLenFill
+    applyCorner(asLenKnob, 6)
+
+    local asHint = Instance.new("TextLabel")
+    asHint.Size = UDim2.new(1, -24, 0, 30)
+    asHint.Position = UDim2.new(0, 12, 0, 152)
+    asHint.BackgroundTransparency = 1
+    asHint.Text = "Press bind to point arm forward. Hold LMB to steer while active. Works on the reanim clone."
+    asHint.TextColor3 = C.textDim
+    asHint.Font = Enum.Font.Gotham
+    asHint.TextSize = 9
+    asHint.TextWrapped = true
+    asHint.TextXAlignment = Enum.TextXAlignment.Left
+    asHint.TextYAlignment = Enum.TextYAlignment.Top
+    asHint.Parent = armStretchCard
+
+    -- State
+    local ArmStretch = {
+        active = false,
+        bind = Enum.KeyCode.E,
+        mode = "Toggle",
+        side = "Right",
+        length = 14,
+        capturing = false,
+        data = nil,
+        connection = nil,
+        lastDir = nil,
+        currentTarget = nil,
+    }
+
+    local function getActiveCharacter()
+        if api and api.is_reanimated and api.is_reanimated() then
+            local clone = api.get_clone and api.get_clone()
+            if clone then return clone end
+        end
+        return player.Character
+    end
+
+    local function findPartInModel(model, name)
+        if not model then return nil end
+        local d = model:FindFirstChild(name)
+        if d and d:IsA("BasePart") then return d end
+        for _, o in ipairs(model:GetDescendants()) do
+            if o:IsA("BasePart") and o.Name == name then return o end
+        end
+    end
+
+    local function findMotorInModel(model, part)
+        if not model then return nil end
+        for _, o in ipairs(model:GetDescendants()) do
+            if o:IsA("Motor6D") and o.Part1 == part then return o end
+        end
+    end
+
+    local function buildBoneCFrame(origin, alongBone, refRight)
+        alongBone = alongBone.Unit
+        local xAxis = refRight:Cross(alongBone)
+        if xAxis.Magnitude < 0.08 then
+            xAxis = Vector3.new(0,1,0):Cross(alongBone)
+            if xAxis.Magnitude < 0.08 then xAxis = Vector3.new(1,0,0):Cross(alongBone) end
+        end
+        xAxis = xAxis.Unit
+        local zAxis = xAxis:Cross(alongBone).Unit
+        xAxis = alongBone:Cross(zAxis).Unit
+        return CFrame.fromMatrix(origin, xAxis, alongBone, zAxis)
+    end
+
+    local function buildArmDataForChar(model, side)
+        local up = findPartInModel(model, side.."UpperArm")
+        local lo = findPartInModel(model, side.."LowerArm")
+        local hd = findPartInModel(model, side.."Hand")
+        if not up or not lo or not hd then return nil end
+        local sM = findMotorInModel(model, up)
+        local eM = findMotorInModel(model, lo)
+        local wM = findMotorInModel(model, hd)
+        if not sM or not eM or not wM then return nil end
+
+        -- Capture the shoulder position BEFORE disabling motors/anchoring the arm.
+        -- The offset is kept in root-local space so the anchored arm follows the body.
+        local root = model:FindFirstChild("HumanoidRootPart")
+        if not root then return nil end
+
+        local shoulderPosition = (up.CFrame * CFrame.new(0, up.Size.Y * 0.5, 0)).Position
+
+        local data = {
+            side = side, upper = up, lower = lo, hand = hd,
+            shoulderMotor = sM, elbowMotor = eM, wristMotor = wM,
+            origSizes = {upper = up.Size, lower = lo.Size, hand = hd.Size},
+            origAnchored = {upper = up.Anchored, lower = lo.Anchored, hand = hd.Anchored},
+            origCC = {upper = up.CanCollide, lower = lo.CanCollide, hand = hd.CanCollide},
+            origTouch = {upper = up.CanTouch, lower = lo.CanTouch, hand = hd.CanTouch},
+            origCQ = {upper = up.CanQuery, lower = lo.CanQuery, hand = hd.CanQuery},
+            origML = {upper = up.Massless, lower = lo.Massless, hand = hd.Massless},
+            origMotorOn = {shoulder = sM.Enabled, elbow = eM.Enabled, wrist = wM.Enabled},
+            shoulderRootOffset = root.CFrame:PointToObjectSpace(shoulderPosition),
+        }
+
+        sM.Enabled = false
+        eM.Enabled = false
+        wM.Enabled = false
+        for _, p in ipairs({up, lo, hd}) do
+            p.Anchored = true; p.CanCollide = false; p.CanTouch = false
+            p.CanQuery = false; p.Massless = true
+        end
+        return data
+    end
+
+    local function restoreArmData(data)
+        if not data then return end
+        pcall(function()
+            local up, lo, hd = data.upper, data.lower, data.hand
+            if up and up.Parent then
+                up.Size = data.origSizes.upper
+                up.Anchored = data.origAnchored.upper
+                up.CanCollide = data.origCC.upper
+                up.CanTouch = data.origTouch.upper
+                up.CanQuery = data.origCQ.upper
+                up.Massless = data.origML.upper
+            end
+            if lo and lo.Parent then
+                lo.Size = data.origSizes.lower
+                lo.Anchored = data.origAnchored.lower
+                lo.CanCollide = data.origCC.lower
+                lo.CanTouch = data.origTouch.lower
+                lo.CanQuery = data.origCQ.lower
+                lo.Massless = data.origML.lower
+            end
+            if hd and hd.Parent then
+                hd.Size = data.origSizes.hand
+                hd.Anchored = data.origAnchored.hand
+                hd.CanCollide = data.origCC.hand
+                hd.CanTouch = data.origTouch.hand
+                hd.CanQuery = data.origCQ.hand
+                hd.Massless = data.origML.hand
+            end
+            if data.shoulderMotor and data.shoulderMotor.Parent then
+                data.shoulderMotor.Enabled = data.origMotorOn.shoulder
+            end
+            if data.elbowMotor and data.elbowMotor.Parent then
+                data.elbowMotor.Enabled = data.origMotorOn.elbow
+            end
+            if data.wristMotor and data.wristMotor.Parent then
+                data.wristMotor.Enabled = data.origMotorOn.wrist
+            end
+        end)
+    end
+
+    local function getShoulderOrigin(data, root)
+        if not data or not data.upper or not data.upper.Parent then return nil end
+        if not root or not root.Parent then return nil end
+        if not data.shoulderRootOffset then return nil end
+
+        -- Never derive the shoulder from the anchored arm itself.
+        -- Rebuild it from the moving root so the stretched arm stays attached.
+        return root.CFrame:PointToWorldSpace(data.shoulderRootOffset)
+    end
+
+    local function updateStretchArm(data, origin, dir, length)
+        if not data then return end
+        if not data.upper or not data.upper.Parent then return end
+        if not data.lower or not data.lower.Parent then return end
+        if not data.hand or not data.hand.Parent then return end
+        if not dir or dir.Magnitude < 0.01 then return end
+        if not origin then return end
+        dir = dir.Unit
+        length = math.clamp(length or 14, 1, 1200)
+
+        local uL = data.origSizes.upper.Y
+        local lL = math.max(length - uL, 0.1)
+        lL = math.min(lL, 1200)
+
+        local refRight = Vector3.new(1, 0, 0)
+        if math.abs(dir:Dot(refRight)) > 0.95 then refRight = Vector3.new(0, 0, 1) end
+
+        local uC = origin + dir * (uL * 0.5)
+        data.upper.Size = Vector3.new(data.origSizes.upper.X, uL, data.origSizes.upper.Z)
+        data.upper.CFrame = buildBoneCFrame(uC, -dir, refRight)
+
+        local elbowPos = origin + dir * uL
+        local lC = elbowPos + dir * (lL * 0.5)
+        data.lower.Size = Vector3.new(data.origSizes.lower.X, lL, data.origSizes.lower.Z)
+        data.lower.CFrame = buildBoneCFrame(lC, -dir, refRight)
+
+        local handPos = origin + dir * (uL + lL)
+        data.hand.Size = data.origSizes.hand
+        data.hand.CFrame = buildBoneCFrame(handPos, -dir, refRight)
+    end
+
+    local function stopArmStretch()
+        if ArmStretch.connection then
+            ArmStretch.connection:Disconnect()
+            ArmStretch.connection = nil
+        end
+        if ArmStretch.data then
+            for _, d in ipairs(ArmStretch.data) do
+                restoreArmData(d)
+                -- Extra safety in case a motor's original Enabled state was true.
+                if d.shoulderMotor and d.shoulderMotor.Parent and d.origMotorOn.shoulder then
+                    d.shoulderMotor.Enabled = true
+                end
+                if d.elbowMotor and d.elbowMotor.Parent and d.origMotorOn.elbow then
+                    d.elbowMotor.Enabled = true
+                end
+                if d.wristMotor and d.wristMotor.Parent and d.origMotorOn.wrist then
+                    d.wristMotor.Enabled = true
+                end
+            end
+            ArmStretch.data = nil
+        end
+        ArmStretch.active = false
+        ArmStretch.lastDir = nil
+        ArmStretch.currentTarget = nil
+    end
+
+    local function startArmStretch()
+        if not (api and api.is_reanimated and api.is_reanimated()) then
+            return false, "Enable Reanim first"
+        end
+        stopArmStretch()
+
+        local model = getActiveCharacter()
+        if not model then return false, "No character / clone" end
+
+        local sides = {}
+        if ArmStretch.side == "Left" then sides = {"Left"}
+        elseif ArmStretch.side == "Both" then sides = {"Right", "Left"}
+        else sides = {"Right"} end
+
+        local built = {}
+        for _, s in ipairs(sides) do
+            local d = buildArmDataForChar(model, s)
+            if not d then
+                for _, b in ipairs(built) do restoreArmData(b) end
+                return false, "Failed to build " .. s .. " arm (clone may not be ready)"
+            end
+            table.insert(built, d)
+        end
+
+        ArmStretch.data = built
+        ArmStretch.active = true
+        ArmStretch.lastDir = nil
+        ArmStretch.currentTarget = nil
+
+        ArmStretch.connection = RunService.Heartbeat:Connect(function(dt)
+            if not ArmStretch.active then return end
+            local model = getActiveCharacter()
+            if not model then stopArmStretch(); return end
+
+            for _, d in ipairs(ArmStretch.data or {}) do
+                if not (d.upper and d.upper.Parent and d.lower and d.lower.Parent and d.hand and d.hand.Parent) then
+                    stopArmStretch(); return
+                end
+            end
+
+            local root = model:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+
+            local dir
+            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                local mouseLoc = UserInputService:GetMouseLocation()
+                local ray = workspace.CurrentCamera:ViewportPointToRay(mouseLoc.X, mouseLoc.Y)
+                local target = ray.Origin + ray.Direction * 100
+                local v = target - root.Position
+                if v.Magnitude > 0.05 then
+                    dir = v.Unit
+                    ArmStretch.lastDir = dir
+                end
+            end
+            if not dir then
+                dir = ArmStretch.lastDir or root.CFrame.LookVector
+            end
+
+            -- Aim from the shoulder instead of the root. This keeps the requested
+            -- reach consistent and prevents the arm from appearing detached.
+            local aimOrigin = nil
+            for _, d in ipairs(ArmStretch.data) do
+                aimOrigin = getShoulderOrigin(d, root)
+                if aimOrigin then break end
+            end
+            if not aimOrigin then return end
+
+            local aimLen = ArmStretch.length
+            local target = aimOrigin + dir * aimLen
+            if not ArmStretch.currentTarget then
+                ArmStretch.currentTarget = target
+            else
+                local a = math.clamp(dt * 20, 0, 1)
+                ArmStretch.currentTarget = ArmStretch.currentTarget:Lerp(target, a)
+            end
+
+            for _, d in ipairs(ArmStretch.data) do
+                local origin = getShoulderOrigin(d, root)
+                if origin then
+                    local toTarget = ArmStretch.currentTarget - origin
+                    local dist = toTarget.Magnitude
+                    if dist > 0.05 then
+                        updateStretchArm(d, origin, toTarget.Unit, math.min(dist, 1200))
+                    end
+                end
+            end
+        end)
+
+        return true, "Arm stretch ON ("..table.concat(sides, "+")..")"
+    end
+
+    local function refreshArmStretchUI()
+        if ArmStretch.active then
+            asEnableBtn.Text = "Disable Arm Stretch"
+            asEnableBtn.BackgroundColor3 = C.accent
+            asEnableBtn.TextColor3 = C.bg
+            asEnableBtn:FindFirstChildOfClass("UIStroke").Color = C.accent
+        else
+            asEnableBtn.Text = "Enable Arm Stretch"
+            asEnableBtn.BackgroundColor3 = C.input
+            asEnableBtn.TextColor3 = C.text
+            asEnableBtn:FindFirstChildOfClass("UIStroke").Color = C.borderSoft
+        end
+        asSideBtn.Text = "Side: "..ArmStretch.side
+        asModeBtn.Text = "Mode: "..ArmStretch.mode
+        asBindBtn.Text = "Bind: "..ArmStretch.bind.Name
+        asLenLabel.Text = "REACH: "..tostring(math.floor(ArmStretch.length))
+        local pct = math.clamp((ArmStretch.length - 1) / (60 - 1), 0, 1)
+        asLenFill.Size = UDim2.new(pct, 0, 1, 0)
+    end
+
+    asEnableBtn.MouseButton1Click:Connect(function()
+        if ArmStretch.active then
+            stopArmStretch()
+            refreshArmStretchUI()
+        else
+            local ok, msg = startArmStretch()
+            if not ok then warn("Arm stretch: "..tostring(msg)) end
+            refreshArmStretchUI()
+        end
+    end)
+
+    asSideBtn.MouseButton1Click:Connect(function()
+        local opts = {"Right", "Left", "Both"}
+        local i = 1
+        for k, v in ipairs(opts) do if v == ArmStretch.side then i = k end end
+        ArmStretch.side = opts[(i % #opts) + 1]
+        if ArmStretch.active then
+            stopArmStretch()
+            startArmStretch()
+        end
+        refreshArmStretchUI()
+    end)
+
+    asModeBtn.MouseButton1Click:Connect(function()
+        ArmStretch.mode = (ArmStretch.mode == "Toggle") and "Hold" or "Toggle"
+        refreshArmStretchUI()
+    end)
+
+    asBindBtn.MouseButton1Click:Connect(function()
+        ArmStretch.capturing = true
+        asBindBtn.Text = "Press key..."
+        asBindBtn.TextColor3 = C.accentDim
+    end)
+
+    local draggingArmLen = false
+    local function updateArmLenFromInput(input)
+        local relX = math.clamp(input.Position.X - asLenTrack.AbsolutePosition.X, 0, asLenTrack.AbsoluteSize.X)
+        local pct = relX / asLenTrack.AbsoluteSize.X
+        ArmStretch.length = math.floor(1 + pct * (60 - 1))
+        refreshArmStretchUI()
+    end
+    asLenTrack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingArmLen = true
+            updateArmLenFromInput(input)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingArmLen = false end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if draggingArmLen and input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateArmLenFromInput(input)
+        end
+    end)
+
+    -- ── Face Attach ──
+    bodySectionTitle("FACE ATTACH", 9)
+
+    local faceAttachCard = Instance.new("Frame")
+    faceAttachCard.Size = UDim2.new(1, 0, 0, 132)
+    faceAttachCard.BackgroundColor3 = C.surface
+    faceAttachCard.BorderSizePixel = 0
+    faceAttachCard.LayoutOrder = 9
+    faceAttachCard.Parent = bodyPanel
+    applyCorner(faceAttachCard, 10)
+    applyStroke(faceAttachCard, C.borderSoft, 1, 0.5)
+
+    local faceAttachBtn = Instance.new("TextButton")
+    faceAttachBtn.Size = UDim2.new(1, -24, 0, 30)
+    faceAttachBtn.Position = UDim2.new(0, 12, 0, 12)
+    faceAttachBtn.BackgroundColor3 = C.input
+    faceAttachBtn.Text = "Attach Arm to Cursor Target"
+    faceAttachBtn.TextColor3 = C.text
+    faceAttachBtn.Font = Enum.Font.GothamBold
+    faceAttachBtn.TextSize = 10.5
+    faceAttachBtn.AutoButtonColor = false
+    faceAttachBtn.Parent = faceAttachCard
+    applyCorner(faceAttachBtn, 6)
+    applyStroke(faceAttachBtn, C.borderSoft, 1, 0.6)
+
+    local faceAttachBindBtn = Instance.new("TextButton")
+    faceAttachBindBtn.Size = UDim2.new(1, -24, 0, 26)
+    faceAttachBindBtn.Position = UDim2.new(0, 12, 0, 48)
+    faceAttachBindBtn.BackgroundColor3 = C.input
+    faceAttachBindBtn.Text = "Bind: G"
+    faceAttachBindBtn.TextColor3 = C.accent
+    faceAttachBindBtn.Font = Enum.Font.GothamBold
+    faceAttachBindBtn.TextSize = 10
+    faceAttachBindBtn.AutoButtonColor = false
+    faceAttachBindBtn.Parent = faceAttachCard
+    applyCorner(faceAttachBindBtn, 6)
+    applyStroke(faceAttachBindBtn, C.borderSoft, 1, 0.6)
+
+    local faceAttachHint = Instance.new("TextLabel")
+    faceAttachHint.Size = UDim2.new(1, -24, 0, 42)
+    faceAttachHint.Position = UDim2.new(0, 12, 0, 82)
+    faceAttachHint.BackgroundTransparency = 1
+    faceAttachHint.Text = "Put your cursor over a player and press the bind.\\nThe arm uses the same face-attachment method and follows their FaceFrontAttachment."
+    faceAttachHint.TextColor3 = C.textDim
+    faceAttachHint.Font = Enum.Font.Gotham
+    faceAttachHint.TextSize = 9
+    faceAttachHint.TextWrapped = true
+    faceAttachHint.TextXAlignment = Enum.TextXAlignment.Left
+    faceAttachHint.TextYAlignment = Enum.TextYAlignment.Top
+    faceAttachHint.Parent = faceAttachCard
+
+    local FaceAttach = {
+        active = false,
+        bind = Enum.KeyCode.G,
+        capturing = false,
+        data = nil,
+        connection = nil,
+        targetPlayer = nil,
+        targetHead = nil,
+        targetFaceAttachment = nil,
+    }
+
+    local function getFaceAttachment(head)
+        if not head then return nil end
+        local direct = head:FindFirstChild("FaceFrontAttachment")
+        if direct and direct:IsA("Attachment") then return direct end
+        for _, o in ipairs(head:GetDescendants()) do
+            if o:IsA("Attachment") and o.Name == "FaceFrontAttachment" then
+                return o
+            end
+        end
+        return nil
+    end
+
+    local function getCursorTargetPlayer()
+        local camera = workspace.CurrentCamera
+        if not camera then return nil end
+
+        local mouseLoc = UserInputService:GetMouseLocation()
+        local ray = camera:ViewportPointToRay(mouseLoc.X, mouseLoc.Y)
+        local result = workspace:Raycast(ray.Origin, ray.Direction * 2000)
+
+        if not result or not result.Instance then return nil end
+
+        local model = result.Instance:FindFirstAncestorOfClass("Model")
+        if not model then return nil end
+
+        local targetPlayer = Players:GetPlayerFromCharacter(model)
+        if targetPlayer and targetPlayer ~= player then
+            return targetPlayer
+        end
+
+        return nil
+    end
+
+    local function refreshFaceAttachUI()
+        if FaceAttach.active then
+            faceAttachBtn.Text = "Detach Arm"
+            faceAttachBtn.BackgroundColor3 = C.accent
+            faceAttachBtn.TextColor3 = C.bg
+            local stroke = faceAttachBtn:FindFirstChildOfClass("UIStroke")
+            if stroke then stroke.Color = C.accent end
+        else
+            faceAttachBtn.Text = "Attach Arm to Cursor Target"
+            faceAttachBtn.BackgroundColor3 = C.input
+            faceAttachBtn.TextColor3 = C.text
+            local stroke = faceAttachBtn:FindFirstChildOfClass("UIStroke")
+            if stroke then stroke.Color = C.borderSoft end
+        end
+
+        faceAttachBindBtn.Text = "Bind: "..FaceAttach.bind.Name
+        faceAttachBindBtn.TextColor3 = FaceAttach.capturing and C.accentDim or C.accent
+    end
+
+    local function stopFaceAttach()
+        if FaceAttach.connection then
+            FaceAttach.connection:Disconnect()
+            FaceAttach.connection = nil
+        end
+
+        if FaceAttach.data then
+            for _, d in ipairs(FaceAttach.data) do
+                restoreArmData(d)
+            end
+            FaceAttach.data = nil
+        end
+
+        FaceAttach.active = false
+        FaceAttach.targetPlayer = nil
+        FaceAttach.targetHead = nil
+        FaceAttach.targetFaceAttachment = nil
+        refreshFaceAttachUI()
+    end
+
+    local function startFaceAttach(targetPlayer)
+        if not targetPlayer or targetPlayer == player then
+            return false, "No player under cursor"
+        end
+
+        if not (api and api.is_reanimated and api.is_reanimated()) then
+            return false, "Enable Reanim first"
+        end
+
+        local targetCharacter = targetPlayer.Character
+        local targetHead = targetCharacter and targetCharacter:FindFirstChild("Head")
+        local faceAttachment = getFaceAttachment(targetHead)
+        if not targetHead then return false, "Target head missing" end
+        if not faceAttachment then return false, "Target has no FaceFrontAttachment" end
+
+        -- Use the exact same arm-building/anchoring method as Arm Stretch.
+        stopFaceAttach()
+        if ArmStretch.active then
+            stopArmStretch()
+            refreshArmStretchUI()
+        end
+
+        local model = getActiveCharacter()
+        if not model then return false, "No character / clone" end
+
+        local sides = {}
+        if ArmStretch.side == "Left" then
+            sides = {"Left"}
+        elseif ArmStretch.side == "Both" then
+            sides = {"Right", "Left"}
+        else
+            sides = {"Right"}
+        end
+
+        local built = {}
+        for _, side in ipairs(sides) do
+            local d = buildArmDataForChar(model, side)
+            if not d then
+                for _, b in ipairs(built) do restoreArmData(b) end
+                return false, "Failed to build "..side.." arm"
+            end
+            table.insert(built, d)
+        end
+
+        FaceAttach.data = built
+        FaceAttach.targetPlayer = targetPlayer
+        FaceAttach.targetHead = targetHead
+        FaceAttach.targetFaceAttachment = faceAttachment
+        FaceAttach.active = true
+
+        FaceAttach.connection = RunService.Heartbeat:Connect(function()
+            if not FaceAttach.active then return end
+
+            local currentCharacter = targetPlayer.Character
+            local currentHead = currentCharacter and currentCharacter:FindFirstChild("Head")
+            local currentAttachment = getFaceAttachment(currentHead)
+
+            if not currentHead or not currentAttachment then
+                stopFaceAttach()
+                return
+            end
+
+            FaceAttach.targetHead = currentHead
+            FaceAttach.targetFaceAttachment = currentAttachment
+
+            local modelNow = getActiveCharacter()
+            local root = modelNow and modelNow:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+
+            local hcf = currentAttachment.WorldCFrame
+            local handPos = hcf.Position
+            local right = hcf.RightVector
+
+            local dataCount = #(FaceAttach.data or {})
+            for i, d in ipairs(FaceAttach.data or {}) do
+                if not (d.upper and d.upper.Parent and d.lower and d.lower.Parent and d.hand and d.hand.Parent) then
+                    stopFaceAttach()
+                    return
+                end
+
+                local origin = getShoulderOrigin(d, root)
+                if origin then
+                    local offset = Vector3.zero
+                    if dataCount == 2 then
+                        offset = (i == 1) and (right * 0.12) or (right * -0.12)
+                    end
+
+                    local target = handPos + offset
+                    local toTarget = target - origin
+                    if toTarget.Magnitude > 0.05 then
+                        updateStretchArm(d, origin, toTarget.Unit, math.min(toTarget.Magnitude, 1200))
+                    end
+                end
+            end
+        end)
+
+        refreshFaceAttachUI()
+        return true, "Attached to "..targetPlayer.DisplayName
+    end
+
+    local function toggleFaceAttachAtCursor()
+        if FaceAttach.active then
+            stopFaceAttach()
+            return
+        end
+
+        local targetPlayer = getCursorTargetPlayer()
+        if not targetPlayer then
+            warn("Face attach: put your cursor over a player")
+            return
+        end
+
+        local ok, msg = startFaceAttach(targetPlayer)
+        if not ok then
+            warn("Face attach: "..tostring(msg))
+        end
+    end
+
+    faceAttachBtn.MouseButton1Click:Connect(function()
+        toggleFaceAttachAtCursor()
+    end)
+
+    faceAttachBindBtn.MouseButton1Click:Connect(function()
+        FaceAttach.capturing = true
+        faceAttachBindBtn.Text = "Press key..."
+        faceAttachBindBtn.TextColor3 = C.accentDim
+    end)
+
+    BodyArm.FaceAttach = FaceAttach
+    BodyArm.stopFaceAttach = stopFaceAttach
+    BodyArm.startFaceAttach = startFaceAttach
+    BodyArm.toggleFaceAttachAtCursor = toggleFaceAttachAtCursor
+    BodyArm.refreshFaceAttachUI = refreshFaceAttachUI
+
+    bodySectionTitle("UTILITIES", 10)
+
+    local stopAllCard = Instance.new("Frame")
+    stopAllCard.Size = UDim2.new(1, 0, 0, 44)
+    stopAllCard.BackgroundColor3 = C.surface
+    stopAllCard.BorderSizePixel = 0
+    stopAllCard.LayoutOrder = 11
+    stopAllCard.Parent = bodyPanel
+    applyCorner(stopAllCard, 10)
+    applyStroke(stopAllCard, C.borderSoft, 1, 0.5)
+
+    local stopAllBtn = Instance.new("TextButton")
+    stopAllBtn.Size = UDim2.new(1, -20, 0, 28)
+    stopAllBtn.Position = UDim2.new(0, 10, 0.5, -14)
+    stopAllBtn.BackgroundColor3 = C.input
+    stopAllBtn.Text = "Stop All Body Features"
+    stopAllBtn.TextColor3 = C.text
+    stopAllBtn.Font = Enum.Font.GothamBold
+    stopAllBtn.TextSize = 10
+    stopAllBtn.AutoButtonColor = false
+    stopAllBtn.Parent = stopAllCard
+    applyCorner(stopAllBtn, 6)
+    applyStroke(stopAllBtn, C.borderSoft, 1, 0.6)
+
+    stopAllBtn.MouseButton1Click:Connect(function()
+        stopArmStretch()
+        refreshArmStretchUI()
+    end)
+
+    refreshArmStretchUI()
+    bodyPanel.CanvasSize = UDim2.new(0, 0, 0, 320)
+
+    BodyArm.panel = bodyPanel
+    BodyArm.ArmStretch = ArmStretch
+    BodyArm.stopArmStretch = stopArmStretch
+    BodyArm.startArmStretch = startArmStretch
+    BodyArm.refreshArmStretchUI = refreshArmStretchUI
+end)()
+
+-- ═══════════════════════════════════════════════════
 -- LIST ENGINE
 -- ═══════════════════════════════════════════════════
 local ROW_HEIGHT = 40
@@ -2025,7 +2843,6 @@ function populateList()
     scrollList.CanvasSize = UDim2.new(0,0,0, total * (ROW_HEIGHT + 5) + 8)
 end
 
--- Drag-to-reorder tracking (Favs tab)
 UserInputService.InputChanged:Connect(function(input)
     if not dragState then return end
     if input.UserInputType ~= Enum.UserInputType.MouseMovement
@@ -2057,7 +2874,6 @@ UserInputService.InputEnded:Connect(function(input)
     populateList()
 end)
 
--- Debounced search repopulation
 local searchToken = 0
 local function queueSearch()
     searchToken = searchToken + 1
@@ -2071,7 +2887,6 @@ local function queueSearch()
 end
 searchBox:GetPropertyChangedSignal("Text"):Connect(queueSearch)
 
--- Binds list
 function populateBindsList()
     for _, child in ipairs(bindsPanel:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
@@ -2179,6 +2994,7 @@ switchTab = function(tab)
     speedPanel.Visible = (tab == "Speed")
     statesPanel.Visible = (tab == "States")
     limbsPanel.Visible = (tab == "Limbs")
+    BodyArm.panel.Visible = (tab == "Body")
 
     if isAnimList then
         if tab == "Favs" then
@@ -2249,6 +3065,21 @@ end)
 -- ═══════════════════════════════════════════════════
 UserInputService.InputBegan:Connect(function(input, gpe)
     if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+    if BodyArm.FaceAttach and BodyArm.FaceAttach.capturing then
+        BodyArm.FaceAttach.bind = input.KeyCode
+        BodyArm.FaceAttach.capturing = false
+        BodyArm.refreshFaceAttachUI()
+        return
+    end
+
+    if BodyArm.ArmStretch.capturing then
+        BodyArm.ArmStretch.bind = input.KeyCode
+        BodyArm.ArmStretch.capturing = false
+        BodyArm.refreshArmStretchUI()
+        return
+    end
+
     if currentlyBinding then
         local kName = input.KeyCode.Name
         savedConfig.binds[currentlyBinding.name] = kName
@@ -2272,7 +3103,34 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         currentlyBindingSpeed = nil
         return
     end
+
     if gpe then return end
+
+    if BodyArm.FaceAttach and input.KeyCode == BodyArm.FaceAttach.bind then
+        BodyArm.toggleFaceAttachAtCursor()
+        return
+    end
+
+    if input.KeyCode == BodyArm.ArmStretch.bind then
+        if BodyArm.ArmStretch.mode == "Toggle" then
+            if BodyArm.ArmStretch.active then
+                BodyArm.stopArmStretch()
+                BodyArm.refreshArmStretchUI()
+            else
+                local ok = BodyArm.startArmStretch()
+                BodyArm.refreshArmStretchUI()
+                if not ok then warn("Arm stretch: enable Reanim first") end
+            end
+        else
+            if not BodyArm.ArmStretch.active then
+                local ok = BodyArm.startArmStretch()
+                BodyArm.refreshArmStretchUI()
+                if not ok then warn("Arm stretch: enable Reanim first") end
+            end
+        end
+        return
+    end
+
     for spdStr, kName in pairs(savedConfig.speedBinds) do
         if input.KeyCode.Name == kName then
             applySpeed(tonumber(spdStr) or 1.0)
@@ -2288,6 +3146,16 @@ UserInputService.InputBegan:Connect(function(input, gpe)
                     return
                 end
             end
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+    if BodyArm.ArmStretch.mode == "Hold" and input.KeyCode == BodyArm.ArmStretch.bind then
+        if BodyArm.ArmStretch.active then
+            BodyArm.stopArmStretch()
+            BodyArm.refreshArmStretchUI()
         end
     end
 end)
@@ -2308,6 +3176,8 @@ toggleBtn.MouseButton1Click:Connect(function()
     local newState = not api.is_reanimated()
     toggleBtn.Text = newState and "Reanimating..." or "Disabling..."
     toggleBtn.TextColor3 = C.textMuted
+    BodyArm.stopArmStretch()
+    BodyArm.refreshArmStretchUI()
     task.spawn(function()
         local err = api.reanimate(newState)
         if err and typeof(err)=="string" and err ~= "Already reanimated." then
@@ -2318,8 +3188,6 @@ toggleBtn.MouseButton1Click:Connect(function()
             manualAnimationPlaying = false
             updateNowPlayingUI(nil)
         end
-        -- Give the module a beat to finish clone setup / teardown, then
-        -- reapply height to whichever humanoid is now visible.
         task.wait(0.15)
         applyHeightToVisible()
     end)
@@ -2329,7 +3197,6 @@ end)
 updateReanimButtonState()
 applySpeed(currentSpeed)
 
--- Apply initial height once the character is ready
 if player.Character then
     task.wait(0.1)
 end
