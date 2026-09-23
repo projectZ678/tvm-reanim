@@ -1923,8 +1923,20 @@ local BodyArm = {}
         end)
     end
 
+    -- ── FIX: Use the shoulder Motor6D as the source of truth so the
+    -- upper arm stays socketed to the torso no matter how the reanim
+    -- moves/rotates the torso.
     local function getShoulderOrigin(data, root)
-        if not data or not data.upper or not data.upper.Parent then return nil end
+        if not data then return nil end
+
+        -- Primary: real shoulder joint from Motor6D (Part0 is the torso).
+        local motor = data.shoulderMotor
+        if motor and motor.Parent and motor.Part0 and motor.Part0.Parent and motor.C0 then
+            return (motor.Part0.CFrame * motor.C0).Position
+        end
+
+        -- Fallback: cached offset relative to the root.
+        if not data.upper or not data.upper.Parent then return nil end
         if not root or not root.Parent then return nil end
         if not data.shoulderRootOffset then return nil end
         return root.CFrame:PointToWorldSpace(data.shoulderRootOffset)
