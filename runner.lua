@@ -1,10 +1,3 @@
--- ═══════════════════════════════════════════════════
--- TVM Reanimation Runner - FULLY FIXED (Arm + Syntax)
--- Arm Stretch stays attached & Height restore fixed
--- + Torso Aim (Stretch / Follow / Face Attach) binds
--- Sliders now cap at 3000
--- ═══════════════════════════════════════════════════
-
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -13,9 +6,7 @@ local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
 
--- ═══════════════════════════════════════════════════
--- THEME
--- ═══════════════════════════════════════════════════
+
 local C = {
     bg              = Color3.fromRGB(5, 5, 6),
     bgCard          = Color3.fromRGB(11, 11, 13),
